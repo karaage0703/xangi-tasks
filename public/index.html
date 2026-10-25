@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>xangi-tasks</title>
+    <script>
+      (() => {
+        let saved = 'system';
+        try { saved = localStorage.getItem('xangi-theme') || 'system'; } catch {}
+        const dark = saved === 'dark' || (!['light', 'dark'].includes(saved) && matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-frame">
+      <header class="app-topbar">
+        <div class="app-page-navigation">
+          <a id="xangi-home" aria-label="xangiホーム" class="button home-link" href="/" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 10 9-7 9 7v10H15v-7H9v7H3z"/></svg><span>xangiホーム</span></a>
+          <button id="open-categories" class="button mobile-category-control" aria-label="カテゴリを開く" aria-controls="category-sidebar" aria-expanded="false">☰</button>
+          <h1 class="brand">xangi-tasks</h1>
+        </div>
+        <div class="app-preferences"><button id="open-settings" class="button" type="button">設定</button>
+        <label class="theme-select"><span class="sr-only">表示テーマ</span>
+          <select id="theme-select" aria-label="表示テーマ">
+            <option value="system">端末設定</option>
+            <option value="light">ライト</option>
+            <option value="dark">ダーク</option>
+          </select>
+        </label></div>
+      </header>
+
+      <main class="tasks-content">
+        <div class="tasks-layout">
+          <button id="category-backdrop" tabindex="-1" aria-label="カテゴリを閉じる" hidden></button>
+          <aside id="category-sidebar" class="category-sidebar" aria-label="カテゴリ">
+            <div class="category-heading"><h2>カテゴリ</h2><button id="close-categories" class="button mobile-category-control" aria-label="カテゴリを閉じる">×</button></div>
+            <nav id="category-tree" aria-label="カテゴリを選ぶ"></nav>
+            <div class="category-add"><button class="button" id="add-category">＋ カテゴリ</button><button class="button" id="add-folder">＋ フォルダ</button></div>
+          </aside>
+          <section class="workspace" aria-live="polite">
+            <div class="section-heading list-heading">
+              <div><p id="selected-category" class="selected-category"></p><h2 id="view-title">Open</h2></div>
+              <button class="button" id="refresh" aria-label="タスクを更新">更新</button>
+            </div>
+            <nav class="filters" aria-label="タスク表示">
+              <button class="nav-item" data-filter="inbox">Inbox <span id="count-inbox">0</span></button>
+              <button class="nav-item active" data-filter="open">Open <span id="count-open">0</span></button>
+              <button class="nav-item" data-filter="closed">Closed <span id="count-closed">0</span></button>
+              <button class="nav-item" data-filter="all">All <span id="count-all">0</span></button>
+            </nav>
+            <details class="list-options-disclosure"><summary id="list-options-summary">絞り込み・並べ替え</summary><div class="list-options">
+              <label>ラベル<select id="label-filter"><option value="">すべてのラベル</option></select></label>
+              <label>並べ替え<select id="task-sort"><option value="created">追加順（新しい順）</option><option value="due-asc">期限が近い順</option><option value="due-desc">期限が遠い順</option></select></label>
+            </div>
+            </details>
+            <div class="task-grid" id="task-grid"></div>
+            <div class="empty-state" id="empty-state" hidden><h3>この一覧にタスクはありません</h3><p>新しいタスクを追加するか、別の表示へ切り替えてください。</p></div>
+            <details class="connection-card"><summary>接続状態</summary>
+              <div class="connection-heading"><span class="status-dot" id="status-dot"></span><span id="connection-label">xangiを確認中</span></div>
+              <p id="connection-detail">接続しています…</p>
+            </details>
+          </section>
+    <dialog class="task-dialog" id="task-dialog" aria-label="タスク詳細">
+      <div class="detail-shell">
+        <header class="detail-header"><div class="detail-title-field"><label for="detail-title">タイトル</label><input id="detail-title" name="title" form="quick-edit" maxlength="160" required aria-describedby="quick-save-status" /></div><button class="icon-button" id="close-detail" aria-label="閉じる">×</button></header>
+        <div class="detail-meta"><span class="status-badge" id="detail-status">未実施</span><span class="detail-session" id="detail-session"></span></div>
+        <form id="quick-edit" class="quick-edit" aria-label="タスクをすぐ編集">
+          <label>状態<select id="quick-status" name="status" aria-label="状態"></select></label>
+          <label>実行状態<select id="quick-execution" name="executionStatus" aria-label="実行状態"></select></label>
+          <label>期限<input id="quick-due" name="dueDate" type="date" /></label>
+          <label class="quick-labels">ラベル<input id="quick-labels" name="labels" placeholder="仕事, 個人" aria-describedby="quick-save-status" /></label>
+          <label>カテゴリ<select id="quick-category" name="categoryId" class="category-select"><option value="">未分類</option></select></label>
+          <p id="quick-save-status" role="status">変更すると保存します</p>
+          <button id="quick-retry" class="button" type="submit" hidden>保存を再試行</button>
+        </form>
+        <p class="detail-properties" id="detail-properties"></p>
+        <label class="detail-description" for="detail-description">背景・完了条件<textarea id="detail-description" name="description" form="quick-edit" rows="4" maxlength="4000" placeholder="背景や完了条件を入力" aria-describedby="quick-save-status"></textarea></label>
+        <label class="detail-notes" for="detail-notes">メモ<textarea id="detail-notes" name="notes" form="quick-edit" rows="5" maxlength="10000" placeholder="思いついたこと、途中経過、あとで確認したいことなど" aria-describedby="notes-hint quick-save-status"></textarea><small id="notes-hint">タスクの補足や途中経過を残せます。</small></label>
+        <section class="source-evidence" id="detail-source" hidden><p class="eyebrow">会話の根拠</p><blockquote id="detail-source-text"></blockquote><a id="detail-source-link" target="_blank" rel="noreferrer">元のメッセージを開く</a></section>
+        <p class="detail-error" id="detail-error" hidden></p>
+        <footer class="detail-footer" id="detail-actions"></footer>
+        <section id="notion-panel" class="notion-panel" aria-label="Notionに保存">
+          <strong>Notion</strong>
+          <a id="notion-link" target="_blank" rel="noreferrer" hidden>タスクのNotionページを開く ↗</a>
+          <div id="notion-setup">
+            <button class="button" type="button" data-notion="create">タスクのページを作成</button>
+            <button class="button" type="button" data-notion="settings">親ページを設定</button>
+            <p>設定した親ページの下に、このタスク専用のページを作成します。</p>
+            <details><summary>既存ページを使う</summary>
+              <label for="notion-page">既存のタスクページURL</label>
+              <input id="notion-page" type="text" placeholder="https://www.notion.so/…" />
+              <button class="button" type="button" data-notion="link">このページをリンク</button>
+            </details>
+          </div>
+          <div id="notion-saves" hidden>
+            <label for="notion-file">保存するファイル（20 MiB以下）</label>
+            <input id="notion-file" type="file" />
+            <button class="button" type="button" data-notion="file">ファイルを保存</button>
+            <p>バックアップはこのタスクと所属分類のJSONです。保存するたびに追加します。</p>
+          </div>
+          <p id="notion-status" role="status"></p>
+        </section>
+      </div>
+    </dialog>
+        </div>
+      </main>
+    </div>
+
+    <button id="open-create" class="button primary create-launcher" aria-label="タスクを追加" aria-haspopup="dialog" aria-controls="create-dialog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <dialog id="create-dialog" class="composer create-dialog" aria-labelledby="composer-title">
+      <div class="section-heading">
+        <div><h2 id="composer-title">タスクを追加</h2></div>
+        <button type="button" class="icon-button" id="close-create" autofocus aria-label="追加フォームを閉じる">×</button>
+      </div>
+      <form id="task-form">
+        <label>タイトル<input id="task-title" name="title" maxlength="160" placeholder="例：企画書のたたき台を作る" autocomplete="off" required /></label>
+        <label>背景・完了条件<textarea id="task-description" name="description" rows="4" maxlength="4000" placeholder="xangiに渡したい背景や、どこまでできれば完了か"></textarea></label>
+        <label>ラベル（カンマ区切り）<input name="labels" placeholder="仕事, 個人活動" /></label>
+        <label>カテゴリ<select name="categoryId" class="category-select"><option value="">未分類</option></select></label>
+        <label>期限<input name="dueDate" type="date" /></label>
+        <fieldset class="repeat-fields"><legend>繰り返し</legend>
+          <label>頻度<select name="repeatPreset"><option value="none">繰り返さない</option><option value="day">毎日</option><option value="weekdays">平日</option><option value="week">毎週</option><option value="month">毎月</option><option value="year">毎年</option><option value="custom">カスタム</option></select></label>
+          <div class="repeat-custom" hidden>
+            <label>間隔<input name="repeatInterval" type="number" min="1" max="999" value="1" /></label>
+            <label>単位<select name="repeatUnit"><option value="day">日ごと</option><option value="week">週ごと</option><option value="month">か月ごと</option><option value="year">年ごと</option></select></label>
+          </div>
+          <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら期限の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
+          <small>完了すると次回分を未実施に追加します。期限未指定なら今日が初回です。</small>
+        </fieldset>
+        <p id="create-error" role="alert" hidden></p>
+        <div class="composer-actions">
+          <p>作成しただけではxangiは動きません。</p>
+          <button class="button primary" type="submit">追加</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="task-dialog" id="collection-dialog" aria-labelledby="collection-heading">
+      <form id="collection-form" class="detail-shell">
+        <header class="detail-header"><h2 id="collection-heading">カテゴリを追加</h2><button class="icon-button" type="button" id="close-collection" aria-label="分類の編集を閉じる">×</button></header>
+        <label>名前<input name="name" required maxlength="80" autocomplete="off" /></label>
+        <label id="collection-folder-label">フォルダ<select name="folderId"></select></label>
+        <p id="collection-error" role="alert" hidden></p>
+        <footer class="detail-footer"><button class="button" id="delete-collection" type="button" hidden>削除</button><button class="button primary" type="submit">保存</button></footer>
+        <small>削除するには、中のタスクやカテゴリを先に移動してください。</small>
+      </form>
+    </dialog>
+    <dialog class="task-dialog" id="delegate-dialog" aria-labelledby="delegate-heading">
+      <form id="delegate-form" class="detail-shell">
+        <header class="detail-header"><h2 id="delegate-heading">xangiへ依頼</h2><button type="button" class="icon-button" id="close-delegate" aria-label="閉じる">×</button></header>
+        <p id="delegate-task-title"></p>
+        <label>依頼先のProject<select name="projectId" id="delegate-project" aria-describedby="delegate-project-hint"></select></label>
+        <p id="delegate-project-hint" role="status"></p>
+        <label>依頼するエージェント<select name="agentId" id="delegate-agent" aria-describedby="delegate-agent-hint"></select></label>
+        <p id="delegate-agent-hint" role="status"></p>
+        <button type="button" class="button" id="save-default-agent">この依頼先を既定にする</button>
+        <label>追加の指示（任意）<textarea name="instructions" rows="4" maxlength="4000" placeholder="今回お願いしたいこと、実行しないでほしいこと"></textarea></label>
+        <p>開いている会話には追加で依頼し、閉じた後は新しい会話を作ります。タイトル・背景と完了条件・期限・ラベル・追加指示を送ります。メモは自動では送りません。</p>
+        <p id="delegate-error" role="alert" hidden></p>
+        <footer class="detail-footer"><button type="submit" class="button primary">依頼を送信</button></footer>
+      </form>
+    </dialog>
+    <dialog class="task-dialog" id="edit-dialog" aria-labelledby="edit-heading">
+      <form id="edit-form" class="detail-shell">
+        <h2 id="edit-heading">タスクを編集</h2>
+        <label>タイトル<input name="title" maxlength="160" required /></label>
+        <label>背景・完了条件<textarea name="description" maxlength="4000"></textarea></label>
+        <label>ラベル（カンマ区切り）<input name="labels" placeholder="仕事, 個人活動" /></label>
+        <label>カテゴリ<select name="categoryId" class="category-select"><option value="">未分類</option></select></label>
+        <label>期限<input name="dueDate" type="date" /></label>
+              <fieldset class="repeat-fields"><legend>繰り返し</legend>
+                <label>頻度<select name="repeatPreset"><option value="none">繰り返さない</option><option value="day">毎日</option><option value="weekdays">平日</option><option value="week">毎週</option><option value="month">毎月</option><option value="year">毎年</option><option value="custom">カスタム</option></select></label>
+                <div class="repeat-custom" hidden>
+                  <label>間隔<input name="repeatInterval" type="number" min="1" max="999" value="1" /></label>
+                  <label>単位<select name="repeatUnit"><option value="day">日ごと</option><option value="week">週ごと</option><option value="month">か月ごと</option><option value="year">年ごと</option></select></label>
+                </div>
+                <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら期限の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
+                <small>完了すると次回分を未実施に追加します。期限未指定なら今日が初回です。</small>
+              </fieldset>
+        <p>変更はタスクに保存されます。</p>
+        <div><button type="button" class="button" id="cancel-edit">キャンセル</button><button type="submit" class="button primary">保存</button></div>
+      </form>
+    </dialog>
+    <dialog class="task-dialog" id="delete-dialog" aria-labelledby="delete-heading">
+      <form method="dialog" class="detail-shell">
+        <h2 id="delete-heading">タスクを削除</h2>
+        <p id="delete-task-title"></p>
+        <p>タスク一覧から取り除きます。</p>
+        <footer class="detail-footer"><button class="button" value="cancel" autofocus>キャンセル</button><button class="button" value="delete">削除する</button></footer>
+      </form>
+    </dialog>
+    <dialog id="settings-dialog" class="task-dialog" aria-labelledby="settings-heading">
+      <form id="settings-form" class="settings-form">
+        <header class="section-heading"><h2 id="settings-heading">設定</h2><button id="close-settings" class="icon-button" type="button" aria-label="設定を閉じる">×</button></header>
+        <label for="notion-parent">Notionの親ページURL</label>
+        <input id="notion-parent" type="text" placeholder="https://www.notion.so/…" />
+        <p>タスクのページを作成する場所です。Notionで既存の連携に接続を許可したページを指定してください。</p>
+        <p>変更は今後作るページに適用されます。作成済みのタスクページは移動しません。</p>
+        <p id="settings-status" role="status"></p>
+        <button class="button primary" type="submit">保存</button>
+        <hr />
+        <h3>Export / Import</h3>
+        <p>全フォルダ・カテゴリ・タスク・設定をJSONで保存・復元します。Notionの設定は不要です。削除済みタスクと認証キーは含みません。</p>
+        <button id="export-all" class="button" type="button">Export（JSONを保存）</button>
+        <label for="import-file">ImportするJSONファイル（20 MiB以下）</label>
+        <input id="import-file" type="file" accept="application/json,.json" />
+        <button id="import-preview" class="button" type="button">Import内容を確認</button>
+        <p id="transfer-status" role="status"></p>
+        <button id="import-confirm" class="button" type="button" hidden>既存データを置き換えてImport</button>
+      </form>
+    </dialog>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script defer src="clipboard.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

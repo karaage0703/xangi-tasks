@@ -1,0 +1,9 @@
+node_modules/
+.data/
+.env
+coverage/
+*.log
+xangi-tasks-*.png
+
+__pycache__/
+*.pyc
