@@ -47,3 +47,20 @@ test('conversion preserves every record and metadata; startup rejects unconverte
   const file=join(await mkdtemp(join(tmpdir(),'old-state-')),'tasks.json');const original=JSON.stringify(input);await writeFile(file,original);
   await assert.rejects(new TaskStore(file).init(),/convert old task data/);assert.equal(await readFile(file,'utf8'),original);
 });
+
+test('Inbox keeps a proposed category through edits and acceptance without accepting on edit', async () => {
+  const file = join(await mkdtemp(join(tmpdir(), 'inbox-category-')), 'tasks.json');
+  const store = new TaskStore(file); await store.init();
+  const work = await store.saveCollection('categories', {name:'Work'});
+  const personal = await store.saveCollection('categories', {name:'Personal'});
+  const item = await store.createInboxItem({title:'Proposal',sourceText:'Please prepare a report',sourceKey:'proposal',categoryId:work.id});
+  assert.equal(item.categoryId,work.id); assert.equal(item.status,'inbox');
+  await store.update(item.id,{categoryId:personal.id});
+  assert.equal(store.get(item.id).status,'inbox');
+  const duplicate = await store.createInboxItem({title:'Proposal',sourceText:'Please prepare a report',sourceKey:'proposal',categoryId:work.id});
+  assert.equal(duplicate.categoryId,personal.id);
+  await assert.rejects(store.createInboxItem({title:'Invalid',sourceText:'A source',categoryId:'missing'}));
+  await store.transition(item.id,'open');
+  const reload = new TaskStore(file); await reload.init();
+  assert.equal(reload.get(item.id).categoryId,personal.id); assert.equal(reload.get(item.id).status,'open');
+});

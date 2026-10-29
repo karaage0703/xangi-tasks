@@ -52,6 +52,8 @@ sources.jsonを取得元ごとに読み、sourcesのtext・contextとexistingTas
 
 ## Step 3: 判断ファイルを保存して適用する
 
+候補にはsnapshotの`existingCategories`から内容に合う既存カテゴリを提案し、判断ファイルの`categoryId`にそのIDを入れる。判断できなければ空文字で未分類にする。カテゴリを新規作成・推測したIDで指定しない。これは仮分類であり、採用ではない。本人はInboxで修正でき、カテゴリを変更してもInboxに残る。
+
 ```json
 [
   {"sourceKey":"取得したID","action":"candidate","title":"発表概要を送る","evidence":"本文の完全一致の引用（5文字以上）","reason":"未対応の具体的な依頼。元メールを確認して承認する"},

@@ -7,20 +7,19 @@ import { normalizeRepeat, nextDueDate, todayJst } from './recurrence.js';
 const TASK_TYPE_VALUES = new Set(['action', 'waiting', 'hold']);
 
 export function editableFields(input, current = {}) {
+  if (Object.hasOwn(input, 'labels')) throw new Error('Unsupported field: labels');
   const title = String(input.title ?? current.title ?? '').trim();
   if (!title || title.length > 160) throw new Error('タイトルは1〜160文字で入力してください');
   const description = String(input.description ?? current.description ?? '');
   if (description.length > 4000) throw new Error('背景・完了条件は4000文字以内です');
   const notes = input.notes ?? current.notes ?? '';
   if (typeof notes !== 'string' || notes.length > 10000) throw new Error('メモは10000文字以内のテキストで入力してください');
-  const labels = input.labels ?? current.labels ?? [];
-  if (!Array.isArray(labels) || labels.length > 10 || labels.some(v => typeof v !== 'string' || !v.trim() || v.trim().length > 40)) throw new Error('ラベルは各40文字以内、10個までです');
   const dueDate = input.dueDate ?? current.dueDate ?? '';
   if (typeof dueDate !== 'string' || (dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(Date.parse(dueDate)) || new Date(dueDate).toISOString().slice(0,10) !== dueDate))) throw new Error('期限は有効な日付を指定してください');
   const categoryId = input.categoryId ?? current.categoryId ?? '';
   if (typeof categoryId !== 'string' || categoryId.length > 100) throw new Error('カテゴリが無効です');
   const repeat = normalizeRepeat(input.repeat === undefined ? current.repeat : input.repeat);
-  return { title, description, notes, categoryId, labels: [...new Set(labels.map(v => v.trim()))], dueDate: dueDate || (repeat ? todayJst() : ''), repeat };
+  return { title, description, notes, categoryId, dueDate: dueDate || (repeat ? todayJst() : ''), repeat };
 }
 
 function clone(value) {
@@ -50,7 +49,7 @@ export function validateBackup(input) {
   for (const category of result.collections.categories) if (category.folderId && !folders.has(category.folderId)) fail();
   for (const task of result.tasks) {
     try { validateTaskState(task); } catch { fail(); }
-    if (task.deletedAt) fail();
+    if (task.deletedAt || Object.hasOwn(task, 'labels')) fail();
     for (const key of ['title', 'description', 'notes', 'result', 'error', 'agentId', 'projectId', 'conversationAgentId', 'conversationProjectId', 'delegationInstructions', 'titleSyncError', 'dueRaw', 'repeatAnchor']) {
       if (task[key] !== undefined && typeof task[key] !== 'string') fail();
     }
@@ -100,7 +99,10 @@ export class TaskStore {
     try {
       const parsed = JSON.parse(await readFile(this.filePath, 'utf8'));
       if (!Array.isArray(parsed)) throw new Error('Task data must be an array');
-      this.tasks = parsed.map(task => validateTaskState(task));
+      this.tasks = parsed.map(task => {
+        if (Object.hasOwn(task, 'labels')) throw new Error('Remove labels from stored data before starting');
+        return validateTaskState(task);
+      });
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
       await this.#persist();
@@ -235,7 +237,7 @@ export class TaskStore {
     return task ? clone(task) : null;
   }
 
-  async create({ title, description = '', notes = '', labels = [], dueDate = '', repeat = null, categoryId = '' }) {
+  async create({ title, description = '', notes = '', dueDate = '', repeat = null, categoryId = '' }) {
     const normalizedTitle = String(title || '').trim();
     if (!normalizedTitle) throw new Error('Title is required');
     if (normalizedTitle.length > 160) throw new Error('Title must be 160 characters or fewer');
@@ -244,7 +246,7 @@ export class TaskStore {
       id: randomUUID(),
       title: normalizedTitle,
       description: String(description || '').trim().slice(0, 4000),
-      ...editableFields({ title, description, notes, labels, dueDate, repeat, categoryId }),
+      ...editableFields({ title, description, notes, dueDate, repeat, categoryId }),
       ...phaseFields('idle'),
       xangiSessionId: null,
       result: '',
@@ -265,6 +267,7 @@ export class TaskStore {
     sourceSpeaker = '',
     sourceKey = '',
     dueRaw = '',
+    categoryId = '',
   }) {
     if (typeof sourceKey !== 'string' || sourceKey.length > 300) throw new Error('Invalid source key');
     const normalizedTitle = String(title || '').trim();
@@ -284,6 +287,7 @@ export class TaskStore {
     const task = {
       id: randomUUID(),
       title: normalizedTitle,
+      categoryId,
       description: String(description || '').trim().slice(0, 4000),
       ...phaseFields('inbox'),
       type: normalizedType,
@@ -305,7 +309,7 @@ export class TaskStore {
       // Check inside the write queue, including rejected and soft-deleted records.
       const existing = sourceKey && tasks.find(item => item.source?.key === sourceKey);
       if (existing) result = existing;
-      else tasks.push(task);
+      else { this.validateCategory(categoryId); tasks.push(task); }
     });
     return clone(result);
   }
@@ -322,7 +326,7 @@ export class TaskStore {
         const anchor = task.repeatAnchor || task.dueDate || today;
         nextTask = {
           id: randomUUID(), title: task.title, description: task.description,
-          categoryId: task.categoryId || '', labels: clone(task.labels || []), repeat: clone(task.repeat), repeatAnchor: anchor,
+          categoryId: task.categoryId || '', repeat: clone(task.repeat), repeatAnchor: anchor,
           dueDate: nextDueDate(task.repeat, anchor, task.dueDate || today, today),
           seriesId: task.seriesId || task.id, previousTaskId: task.id,
           ...phaseFields('idle'), xangiSessionId: null, result: '', error: '',
@@ -389,6 +393,7 @@ export class TaskStore {
   }
 
   async update(id, updates, expectedPhases = null) {
+    if (Object.hasOwn(updates, 'labels')) throw new Error('Unsupported field: labels');
     let updated;
     await this.#mutate((tasks) => {
       const task = tasks.find((candidate) => candidate.id === id && !candidate.deletedAt);

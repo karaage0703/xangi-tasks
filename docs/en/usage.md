@@ -7,7 +7,7 @@
 3. Paste into xangi to request retrieval or updates.
 4. Change task status as needed.
 
-Use the bottom-right + button to open the task form. Closing it (close button or Escape) keeps the draft. Successful creation closes it and switches to Open with the label filter cleared. Ctrl/Cmd+Enter submits only an open form. On touch devices, tap a field to open the keyboard.
+Use the bottom-right + button to open the task form. Closing it (close button or Escape) keeps the draft. Successful creation closes it and switches to Open. Ctrl/Cmd+Enter submits only an open form. On touch devices, tap a field to open the keyboard.
 
 ## Setup
 
@@ -68,19 +68,19 @@ npm run build
 
 Use the copy link button to reference a task in xangi. Task details do not fetch chat history.
 
-Views are ordered Inbox → Open → Closed → All. Confirming a candidate moves it to Open; manually created tasks start there too. Open contains unfinished tasks regardless of execution state; Closed includes completed and dismissed tasks. Completion buttons use the label 完了. DELETE /api/tasks/:id soft-deletes a task after UI confirmation, retaining xangi conversation history. Running/delegating tasks cannot be deleted. Records retain deletedAt and are excluded from listing, lookup, and updates.
+Inbox is a separate sidebar destination above categories; category tabs are Open → Closed → All. Confirming a candidate moves it to Open; manually created tasks start there too. Open contains unfinished tasks regardless of execution state; Closed includes completed and dismissed tasks. Completion buttons use the label 完了. DELETE /api/tasks/:id soft-deletes a task after UI confirmation, retaining xangi conversation history. Running/delegating tasks cannot be deleted. Records retain deletedAt and are excluded from listing, lookup, and updates.
 
 To open xangi-tasks inside xangi, link xangi-extension.json and start the extension. xangi starts the application itself on an automatically allocated loopback port. Stopping the extension also stops the application and polling.
 
-Edit changes the title, description, labels (up to 10, 40 characters each), and due date. Dates do not trigger reminders or automatic execution. Copy the task link to use it in xangi.
+Edit changes the title, description, and due date. Dates do not trigger reminders or automatic execution. Copy the task link to use it in xangi.
 
-## Labels, due-date order and repeat
+## Due-date order and repeat
 
-Combine the label selector with status tabs. Sort by newest, nearest or furthest due date; undated tasks always come last. Label and sort choices persist in this browser.
+Sort by newest, nearest or furthest due date; undated tasks always come last. Sort choices persist in this browser. Tab counts reflect the selected category and exclude Inbox candidates. Open tasks due before today in Japan show an overdue indicator in the list.
 
 Choose daily, weekdays (Monday–Friday), weekly, monthly, yearly, or custom (every 1–999 days/weeks/months/years) when creating or editing. Weekly rules accept multiple weekdays; no selection uses the initial due weekday. Enabling repeat without a due date sets the first due date to today in Japan.
 
-Completing a task keeps its history and creates one next occurrence in Open / idle. Open tasks can also be completed manually. Title, description, labels and repeat carry over; session and results do not. Nothing is automatically delegated or notified. Edit the next task to disable repeat, or delete it to stop. Editing a completed occurrence does not update its successor.
+Completing a task keeps its history and creates one next occurrence in Open / idle. Open tasks can also be completed manually. Title, description and repeat carry over; session and results do not. Nothing is automatically delegated or notified. Edit the next task to disable repeat, or delete it to stop. Editing a completed occurrence does not update its successor.
 
 Dates use Japan calendar days. Late completion skips missed dates and chooses the next scheduled date after both the due date and completion day. Weeks start Monday. Month ends clamp to the last valid day but retain the original anchor (Jan 31 → Feb 28 → Mar 31); leap years work similarly. Editing due date or repeat resets the anchor.
 
@@ -88,11 +88,11 @@ Repeat options follow [Microsoft To Do help](https://support.microsoft.com/en-us
 
 ### Initial view and task references
 
-The selected category, folder expansion, view tab, label and sort order are restored on the next visit in the same browser. A deleted category falls back to all categories. These preferences do not sync across devices.
+The selected category, folder expansion, view tab, and sort order are restored on the next visit in the same browser. A deleted category falls back to all categories. These preferences do not sync across devices.
 
 The first visit opens Open; later visits restore the last view. Copy link adds `?task=<ID>` to the current xangi-tasks URL. Opening it shows task details. If clipboard access is unavailable, a manual copy prompt appears.
 
-Open tasks show execution separately: idle (not started), working (manual work), and review (awaiting review), among other states. POST /api/tasks/:id/execution/start sets working; /execution/reset sets idle. Both keep the task Open. POST /api/tasks/:id/open accepts Inbox or reopens Closed.
+Open tasks automatically show progress as a small read-only status label, without a selector or manual start/reset buttons: idle (not started), working (manual work), and review (awaiting review), among other states. POST /api/tasks/:id/execution/start sets working; /execution/reset sets idle. Both keep the task Open. POST /api/tasks/:id/open accepts Inbox or reopens Closed.
 
 ## Authentication and storage
 
@@ -102,7 +102,7 @@ Set `XANGI_TASKS_DATA` to choose the data file. Relative paths are resolved from
 
 ## Edit content directly
 
-Open a task and type directly in its title or background/completion-criteria fields. Changes save on leaving a field; Enter also saves the title, and Ctrl/Cmd+Enter saves the description. Plain Enter inserts a newline in the description. IME confirmation does not submit. Dates, labels and status remain directly editable; use the recurrence/detail settings button for recurrence.
+Open a task and type directly in its title or background/completion-criteria fields. Changes save on leaving a field; Enter also saves the title, and Ctrl/Cmd+Enter saves the description. Plain Enter inserts a newline in the description. IME confirmation does not submit. Dates and categories remain directly editable; use the recurrence/detail settings button for recurrence.
 
 The save status is visible. Failed drafts remain available for retry. Unsaved or saving changes keep the detail open until saving succeeds. Periodic refreshes do not overwrite active drafts. Internal conversation references stay hidden and are preserved on save.
 
@@ -112,7 +112,7 @@ Task details include a separate Notes field for ideas and work-in-progress notes
 
 ## Categories, folders and task details
 
-Create categories and one-level folder groups from the left sidebar. Use the adjacent ellipsis button to rename a category or move it to another folder. Each task belongs to one category; labels remain independent and can be combined with category and status filters. Existing tasks start uncategorized. Recurring tasks retain their category.
+Create categories and one-level folder groups from the left sidebar. Use the adjacent ellipsis button to rename a category or move it to another folder. Each task belongs to one category and can be filtered by category and status. Existing tasks start uncategorized. Recurring tasks retain their category.
 
 On desktop, details open in a right panel while the task list remains interactive. Close with × or Escape. At widths of 900px or less, details use a full-screen modal and closing returns to the list. Pending edits must save before switching tasks. Categories and folders must be empty before deletion.
 
@@ -155,3 +155,7 @@ Import accepts an exported JSON file up to 20 MiB. Preview its counts, then expl
 The bundled xs-xangi-tasks skill reads important mail from xangi-mail, the owner's platform conversation logs, and selected Google calendars, reviews evidence and later context, and registers candidates without executing them. See the [collection procedure](../../skills/xs-xangi-tasks/references-candidates.md). xangi-mail never pushes tasks. Each source is optional and can be used independently. Calendar collection requires authenticated gogcli and `--calendar-config`; `--calendar-days` defaults to 14. Candidates appear in Inbox and move to Open when confirmed.
 
 POST /api/inbox accepts an optional sourceKey of up to 300 characters. Retrying a key returns the existing record, including rejected or soft-deleted records. GET /api/inbox/capabilities returns sourceKeys:true and statusModel:2. Deferred and ignored decisions are tracked by the collector's private state file.
+
+Open Inbox from the top of the category menu. Candidates show a proposed category that can be changed in details without accepting them. Use the acceptance button to move an item to Open while keeping its category.
+
+Labels are removed. Old exports containing labels are rejected. For an existing deployment, stop the extension and run `node scripts/remove-task-labels.js <tasks.json> <new-file.json>` before replacing the data file. Keep the original as a backup; all other task fields are preserved.

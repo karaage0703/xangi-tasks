@@ -7,7 +7,7 @@ out=Path(os.environ.get('SCREENSHOT_DIR','/tmp/tasks-quick-preview'));out.mkdir(
 with tempfile.TemporaryDirectory() as temp:
  server=subprocess.Popen(['node','--input-type=module','-e', '''
 import {TaskStore} from './src/task-store.js'; import {createTaskServer} from './src/app.js';
-const store=new TaskStore(process.env.TEST_DATA); await store.init(); await store.create({title:'週末の予定を整理する',description:'必要なことを書き出す',labels:['個人'],dueDate:'2030-01-31'});
+const store=new TaskStore(process.env.TEST_DATA); await store.init(); await store.create({title:'週末の予定を整理する',description:'必要なことを書き出す',dueDate:'2030-01-31'});
 const app=createTaskServer({store,connector:{health:async()=>({version:'test'})},publicDir:process.cwd()+'/public'});
 app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
 '''],cwd=root,env={**os.environ,'TEST_DATA':temp+'/tasks.json'},stdout=subprocess.PIPE,text=True)
@@ -23,31 +23,30 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
      expect(page.locator('#quick-due')).to_be_in_viewport()
      page.locator('#quick-due').fill('2030-02-20');page.locator('#detail-title').click()
      expect(page.locator('#quick-save-status')).to_have_text('保存しました')
-     page.locator('#quick-labels').fill('仕事, 買い物');page.locator('#detail-title').click()
+     page.locator('#detail-notes').fill('途中経過のメモ');page.locator('#detail-title').click()
      expect(page.locator('#quick-save-status')).to_have_text('保存しました')
-     page.locator('#quick-execution').select_option('working')
-     expect(page.locator('#detail-status')).to_contain_text('作業中')
-     page.locator('#quick-execution').select_option('idle')
+     expect(page.locator('#quick-execution,[data-action=start],[data-action=reset]')).to_have_count(0)
      expect(page.locator('#detail-status')).to_contain_text('未着手')
      page.screenshot(path=str(out/f'quick-{width}.png'))
      assert page.locator('#task-dialog').evaluate('(e)=>e.scrollWidth<=e.clientWidth')
      page.reload();page.locator('.task-open').click()
      expect(page.locator('#quick-due')).to_have_value('2030-02-20')
-     expect(page.locator('#quick-labels')).to_have_value('仕事, 買い物')
+     expect(page.locator('#detail-notes')).to_have_value('途中経過のメモ')
      page.route('**/api/tasks/*',lambda r:r.fulfill(status=500,json={'error':'保存の検証エラー'}) if r.request.method=='PUT' else r.continue_())
-     page.locator('#quick-labels').fill('再試行する入力');page.locator('#detail-title').click()
+     page.locator('#detail-notes').fill('再試行する入力');page.locator('#detail-title').click()
      expect(page.locator('#quick-save-status')).to_contain_text('保存できませんでした')
-     expect(page.locator('#quick-labels')).to_have_value('再試行する入力')
+     expect(page.locator('#detail-notes')).to_have_value('再試行する入力')
      # A poll must not overwrite unsaved input.
      page.wait_for_timeout(4200)
-     expect(page.locator('#quick-labels')).to_have_value('再試行する入力')
+     expect(page.locator('#detail-notes')).to_have_value('再試行する入力')
      page.unroute('**/api/tasks/*');page.locator('#quick-retry').click()
      expect(page.locator('#quick-save-status')).to_have_text('保存しました')
-     page.locator('#quick-status').select_option('closed')
+     page.locator('#detail-actions [data-action=close]').click()
      expect(page.locator('#detail-status')).to_have_text('Closed')
-     page.locator('#quick-status').select_option('open')
+     page.locator('#detail-actions [data-action=open]').click()
+     expect(page.locator('#quick-execution,[data-action=start],[data-action=reset]')).to_have_count(0)
      expect(page.locator('#detail-status')).to_contain_text('未着手')
-     page.locator('#quick-status').select_option('closed')
+     page.locator('#detail-actions [data-action=close]').click()
      expect(page.locator('#detail-status')).to_have_text('Closed')
      page.locator('#close-detail').click();page.locator('[data-filter=closed]').click()
      check=page.locator('.task-check');expect(check).to_be_enabled()

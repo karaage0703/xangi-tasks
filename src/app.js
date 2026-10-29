@@ -195,7 +195,9 @@ export function createTaskServer({ store, connector, publicDir, pollIntervalMs =
       }
 
       if (req.method === 'POST' && url.pathname === '/api/tasks') {
-        const task = await store.create(await readJson(req));
+        const input = await readJson(req);
+        if (Object.hasOwn(input, 'labels')) throw new Error('Unsupported field: labels');
+        const task = await store.create(input);
         json(res, 201, { task });
         return;
       }
@@ -210,7 +212,9 @@ export function createTaskServer({ store, connector, publicDir, pollIntervalMs =
       }
 
       if (req.method === 'POST' && url.pathname === '/api/inbox') {
-        const task = await store.createInboxItem(await readJson(req));
+        const input = await readJson(req);
+        if (Object.hasOwn(input, 'labels')) throw new Error('Unsupported field: labels');
+        const task = await store.createInboxItem(input);
         json(res, 201, { task });
         return;
       }

@@ -211,7 +211,7 @@ def collect(args, state, call=api):
             errors.append({'source': 'conversation', 'error': str(error)})
     sources = list({source['sourceKey']: source for source in sources}.values())
     tasks = call(args.xangi, 'xangi-tasks', 'xangi-tasks.manage', '/api/tasks')['tasks']
-    return {'sources': sources, 'existingTasks': tasks, 'errors': errors, 'limitsReached': limits, 'createdAt': datetime.now(timezone.utc).isoformat()}
+    return {'sources': sources, 'existingCategories': call(args.xangi, 'xangi-tasks', 'xangi-tasks.manage', '/api/collections')['categories'], 'existingTasks': tasks, 'errors': errors, 'limitsReached': limits, 'createdAt': datetime.now(timezone.utc).isoformat()}
 
 
 def apply(args, state, call=api):
@@ -250,7 +250,7 @@ def apply(args, state, call=api):
         if decision['action'] == 'candidate':
             source = sources[key]
             task = call(args.xangi, 'xangi-tasks', 'xangi-tasks.manage', '/api/inbox', body={
-                'title': decision['title'], 'description': decision['reason'], 'type': 'action',
+                'categoryId': decision.get('categoryId', ''), 'title': decision['title'], 'description': decision['reason'], 'type': 'action',
                 'sourceKey': key, 'sourceText': decision['evidence'], 'sourceUrl': source['sourceUrl'],
                 'sourceSpeaker': source['kind']})['task']
             if task.get('source', {}).get('key') != key:

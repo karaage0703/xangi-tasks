@@ -42,7 +42,7 @@ The browser and server share definitions and validation in `public/task-state.js
 - `POST /api/inbox`: create an evidence-backed Inbox item.
 - `GET /api/inbox/capabilities`: sourceKeys:true and statusModel:2.
 - `GET /api/tasks/:id?history=0`: retrieve a task without requesting chat history.
-- `PUT /api/tasks/:id`: edit title, description, notes, labels, due date, repeat and category. Lifecycle changes use dedicated operations.
+- `PUT /api/tasks/:id`: edit title, description, notes, due date, repeat and category. Lifecycle changes use dedicated operations.
 - `POST /api/tasks/:id/open`: accept Inbox or reopen Closed as Open / idle.
 - `POST /api/tasks/:id/dismiss`: dismiss Inbox as Closed / idle with dismissed reason.
 - `POST /api/tasks/:id/close`: complete as Closed / idle with completed reason.
@@ -72,8 +72,14 @@ A pre-import backup is saved, and `.import.json` commits the three-file replacem
 
 ## UI and integrations
 
-Views are Inbox / Open / Closed / All. Details show lifecycle and execution separately. Category selection, folder expansion, view, label and sort order persist in the same browser. Missing categories fall back to all categories. Desktop uses sidebar/list/details; mobile opens panels as needed. Direct edits and drag operations use the same APIs and reload persisted state on failure. Themes are light/dark/system.
+Inbox is a separate sidebar destination; category tabs are Open / Closed / All. Details show lifecycle and progress in a small read-only label, with no status or progress selector. Completion and reopening are available through list checks; Inbox acceptance uses the detail action. Category selection, folder expansion, view and sort order persist in the same browser. Missing categories fall back to all categories. Desktop uses sidebar/list/details; mobile opens panels as needed. Direct edits and drag operations use the same APIs and reload persisted state on failure. Themes are light/dark/system.
 
 The bundled skill reviews important xangi-mail messages, owner conversations and selected Google calendars, then creates Inbox items. sourceKey prevents duplicates after acceptance, dismissal and deletion. Failed reads and deferred decisions remain reviewable. Collection never accepts or executes a task.
 
 Notion uses PUT /api/settings/notion for the parent, POST/PUT /api/tasks/:id/notion for a page, and POST /api/tasks/:id/notion/files for attachments. Credentials remain server-side; uncertain writes are not automatically retried. Full backups use Export / Import.
+
+The selected tab name appears only in the tabs; the list heading shows the category. List titles use 14px text with touch targets at least 44px high. Detail inputs use 16px text and a shared 44px height. Progress appears automatically beside the status in 11px text, without a progress selector or manual start/reset buttons. The category heading uses 12px text; tabs and refresh share one row. Settings and theme controls share 16px text.
+
+The detail panel places due date and category side by side.
+
+Inbox is an independent sidebar destination above categories. It ignores category filters; category Open/Closed/All views exclude Inbox items. Candidate categoryId is provisional: editing it does not accept the item, and acceptance preserves it.

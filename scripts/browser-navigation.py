@@ -13,7 +13,7 @@ import {createTaskServer} from './src/app.js';
 const store = new TaskStore(process.env.TEST_DATA); await store.init();
 const folder = await store.saveCollection('folders', {name:'Work'});
 const category = await store.saveCollection('categories', {name:'Selected', folderId:folder.id});
-await store.create({title:'Category task', categoryId:category.id, labels:['focus']});
+await store.create({title:'Category task', categoryId:category.id});
 await store.create({title:'Other task'});
 const app = createTaskServer({auth:{token:'navigation-test-token-32-characters'},store,connector:{health:async()=>({version:'fixture'})},publicDir:process.env.TEST_PUBLIC || process.cwd()+'/public'});
 app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
@@ -38,14 +38,11 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
                     expect(page.locator('#selected-category')).to_have_text('Selected')
                     page.locator('[data-filter=all]').click()
                     page.locator('#list-options-summary').click()
-                    page.locator('#label-filter').select_option('focus')
                     page.locator('#task-sort').select_option('due-asc')
                     page.reload(wait_until='networkidle')
                     expect(page.locator('#selected-category')).to_have_text('Selected')
-                    expect(page.locator('#label-filter')).to_have_value('focus')
                     expect(page.locator('#task-sort')).to_have_value('due-asc')
                     page.locator('#list-options-summary').click()
-                    page.locator('#label-filter').select_option('')
                     expect(page.locator('.task-open')).to_have_count(1)
                     expect(page.locator('[data-filter=all]')).to_have_class('nav-item active')
                     sidebar()

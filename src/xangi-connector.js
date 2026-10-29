@@ -33,7 +33,7 @@ export class XangiConnector {
   async dispatchTask(task, onSessionReady = async () => {}) {
     const text = [task.title, 'xangi-tasksの依頼です。実行内容と結果はこの会話で報告してください。',
       `Task ID: ${task.id}`, task.description, task.delegationInstructions,
-      task.dueDate ? `期限: ${task.dueDate}` : '', task.labels?.length ? `ラベル: ${task.labels.join(', ')}` : ''].filter(Boolean).join('\n\n');
+      task.dueDate ? `期限: ${task.dueDate}` : ''].filter(Boolean).join('\n\n');
     let sessionId = task.xangiSessionId;
     let session;
     if (sessionId) {
@@ -131,7 +131,6 @@ export class XangiConnector {
       task.description ? `Description:\n${task.description}` : '',
       task.delegationInstructions ? `今回の追加指示:\n${task.delegationInstructions}` : '',
       task.dueDate ? `期限: ${task.dueDate}` : '',
-      task.labels?.length ? `ラベル: ${task.labels.join(', ')}` : '',
     ]
       .filter(Boolean)
       .join('\n\n');

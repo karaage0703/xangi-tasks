@@ -3,7 +3,7 @@
   "id": "xangi-tasks",
   "displayName": "xangi-tasks",
   "description": "タスク・カテゴリを管理。リンクのtaskパラメータまたはIDでGET /api/tasks/<ID>?history=0、PUT /api/tasks/<ID>で取得・更新",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entrypoint": "scripts/xangi-extension",
   "runtime": {
     "kind": "managed-http"
