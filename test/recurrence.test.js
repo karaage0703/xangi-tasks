@@ -24,7 +24,7 @@ test('invalid recurrence rejected and disabling recurrence is explicit', () => {
 test('completion atomically persists one fresh occurrence even on concurrent repeat requests and reload', async()=>{
   const file=join(await mkdtemp(join(tmpdir(),'tasks-repeat-')),'tasks.json');
   const store=new TaskStore(file); await store.init();
-  const t=await store.create({title:'Monthly',description:'Context',notes:'This occurrence only',labels:['仕事'],dueDate:'2026-01-31',repeat:rule('month')});
+  const t=await store.create({title:'Monthly',description:'Context',notes:'This occurrence only',dueDate:'2026-01-31',repeat:rule('month')});
   await store.update(t.id,{...phaseFields('review'),result:'old result',xangiSessionId:'old-session'});
   await Promise.all([store.complete(t.id,'2026-01-31'),store.complete(t.id,'2026-01-31')]);
   const reload=new TaskStore(file); await reload.init();
@@ -32,7 +32,7 @@ test('completion atomically persists one fresh occurrence even on concurrent rep
   const next=reload.get(reload.get(t.id).nextTaskId);
   assert.equal(reload.get(t.id).notes,'This occurrence only'); assert.equal(next.notes || '', '');
   assert.equal(next.dueDate,'2026-02-28'); assert.equal(taskPhase(next),'idle');
-  assert.equal(next.xangiSessionId,null); assert.equal(next.result,''); assert.deepEqual(next.labels,['仕事']);
+  assert.equal(next.xangiSessionId,null); assert.equal(next.result,'');
   const third=(await reload.complete(next.id,'2026-02-28')).nextTask;
   assert.equal(third.dueDate,'2026-03-31');
   await reload.remove(third.id);

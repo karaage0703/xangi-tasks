@@ -193,9 +193,8 @@ test('edits metadata, validates dates, preserves lifecycle and synchronizes sess
   const task = await t.store.create({title:'Before'});
   await t.store.update(task.id,{...phaseFields('review'),xangiSessionId:'linked',result:'keep'});
   const path=`/api/tasks/${task.id}`;
-  const edited=await jsonRequest(t.baseUrl,path,{method:'PUT',body:JSON.stringify({title:'After',description:'New',labels:['仕事','個人活動','仕事'],dueDate:'2026-10-31',...phaseFields('closed')})});
+  const edited=await jsonRequest(t.baseUrl,path,{method:'PUT',body:JSON.stringify({title:'After',description:'New',dueDate:'2026-10-31',...phaseFields('closed')})});
   assert.equal(edited.response.status,200);
-  assert.deepEqual(edited.body.task.labels,['仕事','個人活動']);
   assert.equal(taskPhase(edited.body.task),'review');
   assert.equal(edited.body.task.result,'keep');
   assert.deepEqual(renamed,[{id:'linked',title:'After'}]);
@@ -409,12 +408,12 @@ test('quick metadata updates do not depend on renaming a completed xangi session
   let renames = 0;
   const app = await startTestApp({ renameSession: async () => { renames++; throw new Error('offline'); } });
   context.after(app.close);
-  const task = await app.store.create({ title: 'Existing', description: 'keep', labels: ['old'] });
+  const task = await app.store.create({ title: 'Existing', description: 'keep' });
   await app.store.update(task.id, { ...phaseFields('closed'), xangiSessionId: 'closed-session', result: 'keep result', titleSyncError: 'prior title warning' });
-  const updated = await jsonRequest(app.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ dueDate: '2030-03-20', labels: ['new'] }) });
+  const updated = await jsonRequest(app.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ dueDate: '2030-03-20' }) });
   assert.equal(updated.response.status, 200);
   assert.equal(updated.body.task.dueDate, '2030-03-20');
-  assert.deepEqual(updated.body.task.labels, ['new']);
+  assert.equal(Object.hasOwn(updated.body.task, 'labels'), false);
   assert.equal(updated.body.task.description, 'keep');
   assert.equal(updated.body.task.result, 'keep result');
   assert.equal(taskPhase(updated.body.task), 'closed');
@@ -422,7 +421,7 @@ test('quick metadata updates do not depend on renaming a completed xangi session
   assert.equal(updated.body.task.titleSyncError, 'prior title warning');
   const invalid = await jsonRequest(app.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ labels: ['x'.repeat(41)] }) });
   assert.equal(invalid.response.status, 400);
-  assert.deepEqual(app.store.get(task.id).labels, ['new']);
+  assert.equal(Object.hasOwn(app.store.get(task.id), 'labels'), false);
 });
 
 test('agent choices validate before mutation and persist through native follow-up routing', async context => {

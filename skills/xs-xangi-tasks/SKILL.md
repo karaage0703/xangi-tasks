@@ -34,7 +34,7 @@ IDがない場合は`GET /api/tasks`の`tasks`からタイトル・状態・期�
 "${XANGI_CLI}" tool extension_request --id xangi-tasks --capability xangi-tasks.manage --path "/api/tasks/${TASK_ID}" --method PUT --body-json '{"notes":"構成案を検討中","dueDate":"2026-11-01"}'
 ```
 
-編集できる主な項目は`title`、`description`、`notes`、`labels`（文字列配列）、`dueDate`（YYYY-MM-DDまたは空文字）、`categoryId`。指定しない項目は保持される。日付の例は本人の指定日に置き換える。メモを追記する時は直前に取得した既存メモと統合する。
+編集できる主な項目は`title`、`description`、`notes`、`dueDate`（YYYY-MM-DDまたは空文字）、`categoryId`。指定しない項目は保持される。日付の例は本人の指定日に置き換える。メモを追記する時は直前に取得した既存メモと統合する。
 
 本人の「追加して」は`POST /api/tasks`で未着手にする。本人が承認していない自動抽出は`POST /api/inbox`へ`title`、`sourceText`等を送り、候補として扱う。
 
@@ -83,7 +83,7 @@ Project経由の依頼では、まず`GET /api/projects`で名前・ID・`channe
 
 `projectId`指定時はProjectの担当を使い、`agentId`は使わない。省略は保存済み設定、空文字はProjectなし。Webのみで特定エージェントへ依頼する時は`projectId`も空文字で指定する。既定Projectは`PUT /api/settings`の`projectId`で変更できる。未反映版でAPIが存在しない場合は依頼せず、更新が必要と報告する。
 
-Openのidle・working・review・failed、および完了したClosedから依頼できる。executionStatusがdelegating/running/completingの間は終了を待つ。開いている会話を再利用し、クローズ済みなら新規作成する。依頼先を変える場合は先に現在の会話をクローズする。タスク完了では新方式の会話はクローズしない。送信内容はタイトル・背景と完了条件・期限・ラベル・追加指示。メモは自動で送られないため、必要な部分を送る依頼がある時だけ追加指示に含める。
+Openのidle・working・review・failed、および完了したClosedから依頼できる。executionStatusがdelegating/running/completingの間は終了を待つ。開いている会話を再利用し、クローズ済みなら新規作成する。依頼先を変える場合は先に現在の会話をクローズする。タスク完了では新方式の会話はクローズしない。送信内容はタイトル・背景と完了条件・期限・追加指示。メモは自動で送られないため、必要な部分を送る依頼がある時だけ追加指示に含める。
 
 HTTP 202は受付で、完了ではない。再取得で`status`と`executionStatus`を確認し、`executionStatus: review`は確認待ちとして扱い、結果は会話で確認して報告する。本人の確認なしに自動で完了へ変えない。長時間処理は利用先の通知・定刻確認手順を使い、何も登録せず後で知らせる約束をしない。
 

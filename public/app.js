@@ -11,6 +11,8 @@ try {
   if (Array.isArray(saved)) closedFolders = new Set(saved.filter(id => typeof id === 'string'));
 } catch {}
 const timeFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+const dateFormatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' });
+let renderedDate = '';
 let tasksLoading = false;
 let detailRequest = 0;
 let detailLoadingId = null;
@@ -19,7 +21,7 @@ let quickDirty = new Set();
 let quickSaving = false;
 let dragging = null;
 let moving = false;
-const state = { collections: { folders: [], categories: [] }, category: readPreference('tasks-category'), tasks: [], filter: 'open', label: readPreference('tasks-label'), sort: readPreference('tasks-sort', 'created'), busy: new Set(), selectedTaskId: null, detail: null };
+const state = { collections: { folders: [], categories: [] }, category: readPreference('tasks-category'), tasks: [], filter: 'open', sort: readPreference('tasks-sort', 'created'), busy: new Set(), selectedTaskId: null, detail: null };
 const grid = document.querySelector('#task-grid');
 const empty = document.querySelector('#empty-state');
 const toast = document.querySelector('#toast');
@@ -66,11 +68,11 @@ function formatTime(iso) {
   return timeFormatter.format(date);
 }
 
-function taskMatches(task) {
+function taskMatchesScope(task) {
+  if (task.status === 'inbox') return false;
   if (state.category === 'uncategorized' && task.categoryId) return false;
   if (state.category && state.category !== 'uncategorized' && task.categoryId !== state.category) return false;
-  if (state.label && !(task.labels || []).includes(state.label)) return false;
-  return state.filter === 'all' || task.status === state.filter;
+  return true;
 }
 
 function element(tag, className, text) {
@@ -88,7 +90,7 @@ function actionButton(label, action, task, className = '') {
   return button;
 }
 
-function renderTask(task) {
+function renderTask(task, today) {
   const row = element('article', 'task-card');
   row.dataset.status = task.status;
   row.dataset.executionStatus = task.executionStatus;
@@ -106,7 +108,12 @@ function renderTask(task) {
   if (state.filter === 'all' || ['failed', 'completing', 'delegating'].includes(taskPhase(task))) {
     meta.append(element('span', `status-badge status-${taskPhase(task)}`, taskStatusLabel(task)));
   }
-  if (task.dueDate) meta.append(element('span', 'row-due', task.dueDate));
+  if (task.status === 'inbox') meta.append(element('span', 'proposed-category', `仮: ${state.collections.categories.find(c => c.id === task.categoryId)?.name || '未分類'}`));
+  if (task.dueDate) {
+    const overdue = task.status === 'open' && task.dueDate < today;
+    meta.append(element('span', overdue ? 'row-due overdue' : 'row-due', overdue ? `期限切れ ${task.dueDate}` : task.dueDate));
+    if (overdue) open.setAttribute('aria-label', `${task.title}、期限切れ ${task.dueDate}、詳細を開く`);
+  }
   if (task.repeat) {
     const repeat = element('span', 'row-repeat', '↻');
     repeat.setAttribute('aria-label', repeatLabel(task.repeat));
@@ -134,12 +141,10 @@ function conversationUrl(task, xangiOrigin = state.detail?.xangiOrigin) {
 function renderTaskActions(task) {
   const actions = element('div', 'card-actions');
   if (taskPhase(task) === 'inbox') {
-    actions.append(actionButton('Openにする', 'open', task, 'primary'));
+    actions.append(actionButton('採用してOpenへ', 'open', task, 'primary'));
   }
   if (['idle', 'working', 'review', 'failed', 'closed'].includes(taskPhase(task))) actions.append(actionButton('xangiへ依頼', 'delegate', task, 'primary'));
   if (['delegating', 'running', 'completing'].includes(taskPhase(task))) actions.append(actionButton('状態を同期', 'sync', task));
-  if (taskPhase(task) === 'idle') actions.append(actionButton('作業中にする', 'start', task));
-  if (['working', 'review', 'failed'].includes(taskPhase(task))) actions.append(actionButton('未着手に戻す', 'reset', task));
   if (task.status === 'closed') actions.append(actionButton('Openに戻す', 'open', task));
   if (['idle', 'working', 'running', 'review'].includes(taskPhase(task))) actions.append(actionButton('完了', 'close', task, 'success'));
   actions.append(actionButton('繰り返し・詳細設定', 'edit', task));
@@ -197,22 +202,11 @@ function renderQuickEdit(task) {
     document.querySelector('#quick-save-status').textContent = '変更すると保存します';
     document.querySelector('#quick-retry').hidden = true;
   }
-  const status = document.querySelector('#quick-status');
-  const choices = task.status === 'inbox' ? ['inbox', 'open'] : ['open', 'closed'];
-  status.replaceChildren(...choices.map(value => new Option(statusLabel(value), value)));
-  status.value = task.status;
-  const execution = document.querySelector('#quick-execution');
-  const executionChoices = ['idle', 'working'];
-  if (!executionChoices.includes(task.executionStatus)) executionChoices.push(task.executionStatus);
-  execution.replaceChildren(...executionChoices.map(value => new Option(statusLabel(value), value)));
-  execution.value = task.executionStatus;
-  for (const [name, value] of [['categoryId', task.categoryId || ''], ['title', task.title], ['description', visibleDescription(task.description)], ['notes', task.notes || ''], ['dueDate', task.dueDate || ''], ['labels', (task.labels || []).join(', ')]]) {
+  for (const [name, value] of [['categoryId', task.categoryId || ''], ['title', task.title], ['description', visibleDescription(task.description)], ['notes', task.notes || ''], ['dueDate', task.dueDate || '']]) {
     const input = document.querySelector('#quick-edit').elements.namedItem(name);
     if (changedTask || (!quickDirty.has(name) && document.activeElement !== input)) input.value = value;
   }
   for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, [form="quick-edit"]')) input.disabled = quickSaving || state.busy.has(task.id);
-  status.disabled ||= ['delegating', 'completing'].includes(task.executionStatus);
-  execution.disabled = quickSaving || state.busy.has(task.id) || task.status !== 'open' || ['delegating', 'running', 'completing'].includes(task.executionStatus);
 }
 
 function visibleDescription(value = '') {
@@ -225,7 +219,7 @@ async function saveQuickEdit() {
   const payload = {};
   for (const name of quickDirty) {
     const value = document.querySelector('#quick-edit').elements.namedItem(name).value;
-    payload[name] = name === 'labels' ? value.split(/[,、]/).map(v => v.trim()).filter(Boolean) : value;
+    payload[name] = value;
   }
   if ('title' in payload && !payload.title.trim()) {
     document.querySelector('#quick-save-status').textContent = 'タイトルを入力してください';
@@ -329,14 +323,14 @@ async function runTaskAction(id, action) {
 
 function render() {
   if (dragging) return;
+  renderedDate = dateFormatter.format(new Date());
   renderCategories();
-  const labelSelect = document.querySelector('#label-filter');
-  const labels = [...new Set(state.tasks.flatMap(t => t.labels || []))].sort((a,b) => a.localeCompare(b, 'ja'));
-  if (state.label && !labels.includes(state.label)) labels.push(state.label);
-  labelSelect.replaceChildren(new Option('すべてのラベル', ''), ...labels.map(label => new Option(label, label)));
-  labelSelect.value = state.label;
+  document.querySelector('.filters').hidden = state.filter === 'inbox';
+  document.querySelector('.list-options-disclosure').hidden = state.filter === 'inbox';
+  document.querySelector('.workspace').classList.toggle('inbox-view', state.filter === 'inbox');
   document.querySelector('#task-sort').value = state.sort;
-  const visible = state.tasks.filter(taskMatches);
+  const scopedTasks = state.tasks.filter(taskMatchesScope);
+  const visible = state.filter === 'inbox' ? state.tasks.filter(task => task.status === 'inbox') : scopedTasks.filter(task => state.filter === 'all' || task.status === state.filter);
   if (state.sort.startsWith('due-')) visible.sort((a,b) => {
     if (!a.dueDate) return b.dueDate ? 1 : 0;
     if (!b.dueDate) return -1;
@@ -346,16 +340,16 @@ function render() {
   const focusId = focused?.dataset.id;
   const focusAction = focused?.dataset.action;
   const focusIndex = focused ? [...grid.children].indexOf(focused.closest('.task-card')) : -1;
-  grid.replaceChildren(...visible.map(renderTask));
+  grid.replaceChildren(...visible.map(task => renderTask(task, renderedDate)));
   if (focused) {
     const same = [...grid.querySelectorAll('button')].find(button => button.dataset.id === focusId && button.dataset.action === focusAction && !button.disabled);
     const next = grid.children[Math.min(focusIndex, grid.children.length - 1)]?.querySelector('.task-open');
-    (same || next || document.querySelector('.nav-item.active')).focus({ preventScroll: true });
+    (same || next || document.querySelector('#refresh')).focus({ preventScroll: true });
   }
-  document.querySelector('#list-options-summary').textContent = `絞り込み・並べ替え${state.label ? ` · ${state.label}` : ''}${state.sort !== 'created' ? ' · 期限順' : ''}`;
+  document.querySelector('#list-options-summary').textContent = `並べ替え${state.sort !== 'created' ? ' · 期限順' : ''}`;
   empty.hidden = visible.length > 0;
-  const counts = Object.fromEntries(['inbox', 'open', 'closed'].map(status => [status, state.tasks.filter(task => task.status === status).length]));
-  counts.all = state.tasks.length;
+  const counts = Object.fromEntries(['open', 'closed'].map(status => [status, scopedTasks.filter(task => task.status === status).length]));
+  counts.all = scopedTasks.length;
   for (const [name, count] of Object.entries(counts)) {
     const counter = document.querySelector(`#count-${name}`);
     if (counter) counter.textContent = count;
@@ -372,7 +366,7 @@ async function loadTasks({ quiet = false } = {}) {
     const collectionsChanged = JSON.stringify(collections) !== JSON.stringify(state.collections);
     state.collections = collections;
     if (state.category && state.category !== 'uncategorized' && !collections.categories.some(c => c.id === state.category)) state.category = '';
-    if (!quiet || collectionsChanged || JSON.stringify(tasks) !== JSON.stringify(state.tasks)) {
+    if (!quiet || collectionsChanged || dateFormatter.format(new Date()) !== renderedDate || JSON.stringify(tasks) !== JSON.stringify(state.tasks)) {
       state.tasks = tasks;
       render();
     }
@@ -423,7 +417,7 @@ document.querySelector('#task-form').addEventListener('submit', async (event) =>
   try {
     await api('/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ categoryId: form.categoryId.value, title: form.title.value, description: form.description.value, labels: form.labels.value.split(/[,、]/).map(s => s.trim()).filter(Boolean), dueDate: form.dueDate.value, repeat: readRepeat(form) }),
+      body: JSON.stringify({ categoryId: form.categoryId.value, title: form.title.value, description: form.description.value, dueDate: form.dueDate.value, repeat: readRepeat(form) }),
     });
     // Keep the all-category view when adding a task from it.
     if (state.category) state.category = form.categoryId.value || 'uncategorized';
@@ -431,9 +425,6 @@ document.querySelector('#task-form').addEventListener('submit', async (event) =>
     updateRepeatForm(form);
     createDialog.close();
     document.querySelector('[data-filter=open]').click();
-    state.label = '';
-    writePreference('tasks-label', '');
-    document.querySelector('#label-filter').value = '';
     await loadTasks();
     showToast('タスクを追加しました');
   } catch (error) {
@@ -454,7 +445,7 @@ async function handleTaskAction(event) {
     const form = document.querySelector('#edit-form');
     form.dataset.id = id;
     form.title.value = task.title; form.description.value = task.description;
-    form.labels.value = (task.labels || []).join(', '); form.dueDate.value = task.dueDate || '';
+    form.dueDate.value = task.dueDate || '';
     fillRepeat(form, task.repeat);
     renderCategorySelects();
     form.categoryId.value = task.categoryId || '';
@@ -515,7 +506,7 @@ dialog.addEventListener('cancel', event => { event.preventDefault(); closeDetail
 dialog.addEventListener('close', () => {
   if (panelResizeClosures) { panelResizeClosures--; return; }
   const opener = [...grid.querySelectorAll('.task-open')].find(button => button.dataset.id === state.selectedTaskId);
-  (opener || document.querySelector('.nav-item.active')).focus({ preventScroll: true });
+  (opener || document.querySelector('#refresh')).focus({ preventScroll: true });
   state.selectedTaskId = null;
   detailRequest++;
   detailLoadingId = null;
@@ -574,7 +565,7 @@ async function openLinkedTask() {
   try {
     const { task } = await api(`/api/tasks/${encodeURIComponent(id)}?history=0`);
     if (!state.tasks.some(item => item.id === task.id)) state.tasks.push(task);
-    state.category = ''; state.label = '';
+    state.category = '';
     document.querySelector('[data-filter=all]').click();
     await openTask(task.id);
   } catch (error) { showToast(`リンク先のタスクを開けません: ${error.message}`); }
@@ -603,7 +594,7 @@ document.querySelector('#edit-form').addEventListener('submit', async (event) =>
   try {
     await api(`/api/tasks/${form.dataset.id}`, { method: 'PUT', body: JSON.stringify({
       categoryId: form.categoryId.value, title: form.title.value, description: form.description.value,
-      labels: form.labels.value.split(/[,、]/).map(s => s.trim()).filter(Boolean), dueDate: form.dueDate.value, repeat: readRepeat(form),
+      dueDate: form.dueDate.value, repeat: readRepeat(form),
     }) });
     document.querySelector('#edit-dialog').close();
     await loadTasks();
@@ -615,9 +606,9 @@ document.querySelector('#edit-form').addEventListener('submit', async (event) =>
 
 function repeatLabel(rule) {
   if (rule.unit === 'weekdays') return '繰り返し: 平日';
-  const labels = {day:'日', week:'週', month:'か月', year:'年'};
+  const units = {day:'日', week:'週', month:'か月', year:'年'};
   const weekdays = ['日','月','火','水','木','金','土'];
-  return `繰り返し: ${rule.interval}${labels[rule.unit]}ごと${rule.daysOfWeek?.length ? '（'+rule.daysOfWeek.map(d=>weekdays[d]).join('・')+'）' : ''}`;
+  return `繰り返し: ${rule.interval}${units[rule.unit]}ごと${rule.daysOfWeek?.length ? '（'+rule.daysOfWeek.map(d=>weekdays[d]).join('・')+'）' : ''}`;
 }
 function updateRepeatForm(form) {
   const preset = form.elements.repeatPreset.value;
@@ -645,9 +636,7 @@ for (const id of ['task-form', 'edit-form']) {
   form.elements.repeatUnit.addEventListener('change', ()=>updateRepeatForm(form));
   updateRepeatForm(form);
 }
-document.querySelector('#label-filter').addEventListener('change', event => {
-  state.label = event.target.value; writePreference('tasks-label', state.label); render();
-});
+
 document.querySelector('#task-sort').addEventListener('change', event => {
   state.sort = event.target.value; writePreference('tasks-sort', state.sort); render();
 });
@@ -671,17 +660,6 @@ document.querySelector('#quick-edit').addEventListener('submit', event => {
   event.preventDefault();
   void saveQuickEdit();
 });
-document.querySelector('#quick-status').addEventListener('change', async event => {
-  const task = state.detail?.task;
-  if (!task || event.target.value === task.status) return;
-  await runTaskAction(task.id, event.target.value === 'closed' ? 'close' : 'open');
-});
-document.querySelector('#quick-execution').addEventListener('change', async event => {
-  const task = state.detail?.task;
-  if (!task || event.target.value === task.executionStatus) return;
-  await runTaskAction(task.id, event.target.value === 'working' ? 'start' : 'reset');
-});
-
 function confirmTaskDeletion(task) {
   const confirmation = document.querySelector('#delete-dialog');
   if (confirmation.open) return Promise.resolve(false);
@@ -714,10 +692,10 @@ function renderCategorySelects() {
 }
 function renderCategories() {
   writePreference('tasks-category', state.category);
-  document.querySelector('#selected-category').textContent = state.category === 'uncategorized' ? '未分類' : state.collections.categories.find(c => c.id === state.category)?.name || 'すべてのカテゴリ';
+  document.querySelector('#selected-category').textContent = state.filter === 'inbox' ? 'Inbox' : state.category === 'uncategorized' ? '未分類' : state.collections.categories.find(c => c.id === state.category)?.name || 'すべてのカテゴリ';
   renderCategorySelects();
   const tree = document.querySelector('#category-tree');
-  const signature = JSON.stringify([state.collections, state.category]);
+  const signature = JSON.stringify([state.collections, state.category, state.filter, state.tasks.filter(t => t.status === 'inbox').length]);
   if (tree.dataset.signature === signature) return;
   const expanded = new Set([...tree.querySelectorAll('details[open]')].map(d => d.dataset.id));
   const knownFolders = new Set([...tree.querySelectorAll('details')].map(d => d.dataset.id));
@@ -725,8 +703,8 @@ function renderCategories() {
   const choose = (name, id) => {
     const button = element('button', 'category-choice', name);
     if (id) makeDropTarget(button, 'category', id === 'uncategorized' ? '' : id);
-    button.type = 'button'; button.setAttribute('aria-pressed', String(state.category === id));
-    button.onclick = () => { state.category = id; render(); if (categoryMobile.matches) closeCategories(); else tree.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true }); };
+    button.type = 'button'; button.setAttribute('aria-pressed', String(state.filter !== 'inbox' && state.category === id));
+    button.onclick = () => { state.category = id; if (state.filter === 'inbox') { state.filter = 'open'; writePreference('tasks-view', 'open'); document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.filter === 'open')); } render(); if (categoryMobile.matches) closeCategories(); else tree.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true }); };
     return button;
   };
   const categoryRow = c => {
@@ -737,7 +715,12 @@ function renderCategories() {
     makeDraggable(choice, 'category', c.id);
     row.append(moveHandle('category', c.id, c.name), choice, edit); return row;
   };
-  tree.replaceChildren(choose('すべてのカテゴリ', ''), choose('未分類', 'uncategorized'));
+  const inbox = element('button', 'category-choice inbox-choice', 'Inbox ');
+  inbox.id = 'inbox-view'; inbox.type = 'button'; inbox.dataset.filter = 'inbox';
+  inbox.setAttribute('aria-pressed', String(state.filter === 'inbox'));
+  const count = element('span', '', String(state.tasks.filter(t => t.status === 'inbox').length)); count.id = 'count-inbox'; inbox.append(count);
+  inbox.onclick = () => { state.filter = 'inbox'; writePreference('tasks-view', 'inbox'); render(); if (categoryMobile.matches) closeCategories(); };
+  tree.replaceChildren(inbox, choose('すべてのカテゴリ', ''), choose('未分類', 'uncategorized'));
   for (const folder of state.collections.folders) {
     const group = element('details', 'category-folder'); group.dataset.id = folder.id;
     group.open = knownFolders.has(folder.id) ? expanded.has(folder.id) : !closedFolders.has(folder.id);
@@ -1227,8 +1210,8 @@ importConfirm.addEventListener('click', () => transfer(async () => {
   if (!pendingImport) return;
   const result = await api('/api/import', { method: 'POST', body: JSON.stringify(pendingImport) });
   clearImport();
-  state.selectedTaskId = null; state.detail = null; state.category = ''; state.label = ''; state.filter = 'all';
-  quickDirty.clear(); writePreference('tasks-label', '');
+  state.selectedTaskId = null; state.detail = null; state.category = ''; state.filter = 'all';
+  quickDirty.clear();
   writePreference('tasks-view', state.filter);
   writePreference('tasks-category', state.category);
   transferStatus.textContent = `${result.tasks}件のタスクをImportしました。画面を再読み込みします`;

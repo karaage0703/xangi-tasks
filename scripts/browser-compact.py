@@ -8,7 +8,7 @@ with tempfile.TemporaryDirectory() as temp:
  server=subprocess.Popen(['node','--input-type=module','-e', '''
 import {TaskStore} from './src/task-store.js'; import {createTaskServer} from './src/app.js';
 const store=new TaskStore(process.env.TEST_DATA); await store.init();
-for (const title of ['買い物リストを整理する','週末の予定を確認する','読みかけの本を読む','写真を整理する','次の記事の構成を考える','資料の内容を確認する','来週の準備をする','気になった技術を試す','メモを見返す','部屋を片付ける']) await store.create({title,description:'背景と完了条件。詳細画面で全文を確認できます。'.repeat(8),labels:['個人'],dueDate:'2030-01-31'});
+for (const title of ['買い物リストを整理する','週末の予定を確認する','読みかけの本を読む','写真を整理する','次の記事の構成を考える','資料の内容を確認する','来週の準備をする','気になった技術を試す','メモを見返す','部屋を片付ける']) await store.create({title,description:'背景と完了条件。詳細画面で全文を確認できます。'.repeat(8),dueDate:'2030-01-31'});
 const app=createTaskServer({store,connector:{health:async()=>({version:'test'}),sendTask:async()=>({sessionId:'web-test'}),readHistory:async()=>[],completeSession:async()=>({ok:true}),readSession:async()=>({state:'idle',result:'確認済み'})},publicDir:process.env.PUBLIC_DIR||process.cwd()+'/public'});
 app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
 '''],cwd=root,env={**os.environ,'TEST_DATA':temp+'/tasks.json'},stdout=subprocess.PIPE,text=True)
@@ -34,15 +34,12 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
      page.locator('#edit-form [name=description]').fill('編集内容が詳細にも反映される')
      page.locator('#edit-form [type=submit]').click()
      expect(page.locator('#detail-description')).to_have_text('編集内容が詳細にも反映される')
-     page.locator('#detail-actions [data-action=start]').click()
-     expect(page.locator('#detail-status')).to_contain_text('作業中')
-     page.locator('#detail-actions [data-action=reset]').click()
+     expect(page.locator('#quick-execution,[data-action=start],[data-action=reset]')).to_have_count(0)
      expect(page.locator('#detail-status')).to_contain_text('未着手')
      page.screenshot(path=str(out/f'detail-{width}.png'))
      page.locator('#close-detail').click()
      expect(page.locator('.task-open').first).to_be_focused()
      page.locator('#list-options-summary').click()
-     page.locator('#label-filter').select_option('個人')
      expect(page.locator('.task-card')).to_have_count(10)
      page.locator('#task-sort').select_option('due-asc')
      page.locator('#list-options-summary').click()
@@ -63,7 +60,6 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
      expect(page.locator('#empty-state')).to_be_visible()
      # Restore 10 rows for the next viewport through the real creation flow.
      page.locator('#open-create').click();page.locator('#task-title').fill('追加したタスク');page.locator('#task-description').fill('背景と完了条件')
-     page.locator('#task-form [name=labels]').fill('個人')
      page.locator('#task-form [type=submit]').click()
      expect(page.locator('.task-card')).to_have_count(10)
      page.locator('#theme-select').select_option('dark')

@@ -19,6 +19,7 @@ class CollectionTests(unittest.TestCase):
     def fake(self, cli, extension, capability, path, query=None, body=None):
         if path == '/api/inbox/capabilities': return {'sourceKeys':True,'statusModel':2}
         if path == '/api/tasks': return {'tasks':[]}
+        if path == '/api/collections': return {'categories': []}
         raise RuntimeError('fixture unavailable')
 
     def sources(self):
@@ -39,6 +40,20 @@ class CollectionTests(unittest.TestCase):
         c.apply(self.args,state,api)
         self.assertEqual(attempts,['mail:a','mail:a']);self.assertEqual(len(remote),1)
         self.assertEqual(json.loads(self.args.state.read_text())['seen']['mail:a']['taskId'],'one')
+
+    def test_proposed_category_is_forwarded_without_acceptance(self):
+        self.sources()
+        decisions=json.loads(self.args.decisions.read_text())
+        decisions[0]['categoryId']='work'
+        c.save(self.args.decisions,decisions)
+        sent=[]
+        def api(*args, **kwargs):
+            if args[3] != '/api/inbox': return self.fake(*args, **kwargs)
+            sent.append(kwargs['body'])
+            return {'task': {'id':'one','status':'inbox','source':{'key':'mail:a'}}}
+        c.apply(self.args,{},api)
+        self.assertEqual(sent[0]['categoryId'],'work')
+        self.assertNotIn('status',sent[0])
 
     def test_invalid_evidence_and_unsupported_backend_write_nothing(self):
         self.sources(); decision=json.loads(self.args.decisions.read_text());decision[0]['evidence']='Invented evidence';c.save(self.args.decisions,decision)

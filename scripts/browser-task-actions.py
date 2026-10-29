@@ -45,7 +45,6 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
                     page.locator('#detail-actions [data-action=edit]').click()
                     form=page.locator('#edit-form')
                     form.locator('[name=description]').fill('編集した説明')
-                    form.locator('[name=labels]').fill('仕事, 個人活動')
                     form.locator('[name=dueDate]').fill('2026-10-31')
                     page.screenshot(path=f'/tmp/tasks-editor-{width}.png')
                     form.get_by_role('button',name='保存',exact=True).click()
@@ -54,7 +53,6 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
                     page.locator('[data-filter=open]').click()
                     card.wait_for()
                     card.locator('.task-open').click()
-                    assert page.locator('#quick-labels').input_value() == '仕事, 個人活動'
                     assert '2026-10-31' in card.inner_text()
                     assert '編集した説明' in page.locator('#detail-description').inner_text()
                     page.locator('#detail-actions [data-action=delete]').click()

@@ -1,4 +1,4 @@
-"""Check repeat/filter/sort UI. Optional TASKS_TEST_URL + TASKS_TEST_API target a live instance."""
+"""Check repeat/sort UI. Optional TASKS_TEST_URL + TASKS_TEST_API target a live instance."""
 import json, os, subprocess, tempfile, uuid
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -10,7 +10,7 @@ with tempfile.TemporaryDirectory() as temp:
 import {TaskStore} from './src/task-store.js';
 import {createTaskServer} from './src/app.js';
 const store=new TaskStore(process.env.TEST_DATA); await store.init();
-const app=createTaskServer({store,connector:{health:async()=>({version:'test'})},publicDir:process.cwd()+'/public'});
+const app=createTaskServer({auth:{token:'repeat-fixture-token-with-32-characters'},store,connector:{health:async()=>({version:'test'})},publicDir:process.cwd()+'/public'});
 app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
 '''],cwd=root,env={**os.environ,'TEST_DATA':temp+'/tasks.json'},stdout=subprocess.PIPE,text=True)
   url='http://127.0.0.1:'+server.stdout.readline().strip()
@@ -18,29 +18,26 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
  api=os.getenv('TASKS_TEST_API',url)
  try:
   with sync_playwright() as p:
-   browser=p.chromium.launch(executable_path='/snap/bin/chromium',args=['--no-sandbox'])
+   browser=p.chromium.launch(args=['--no-sandbox'])
    try:
     for width in (1180,375):
      marker='UI確認-'+uuid.uuid4().hex[:8]
-     page=browser.new_page(viewport={'width':width,'height':950})
+     page=browser.new_page(viewport={'width':width,'height':950},extra_http_headers={} if os.getenv('TASKS_TEST_URL') else {'Authorization':'Bearer repeat-fixture-token-with-32-characters'})
      errors=[]; page.on('pageerror',lambda e:errors.append(str(e)))
      try:
       page.goto(url,wait_until='networkidle')
       page.locator('#open-create').click()
       form=page.locator('#task-form')
       form.locator('[name=title]').fill(marker+'-繰り返し')
-      form.locator('[name=labels]').fill(marker+', 仕事')
       form.locator('[name=dueDate]').fill('2030-01-31')
       form.locator('[name=repeatPreset]').select_option('month')
       form.get_by_role('button',name='追加',exact=True).click()
-      page.locator('#label-filter option').filter(has_text=marker).wait_for(state='attached')
-      for suffix,due,labels in [('早い','2029-01-01',[marker]),('なし','',[marker]),('別ラベル','2028-01-01',[marker+'-other'])]:
-       res=page.request.post(api+'/api/tasks',data={'title':marker+'-'+suffix,'labels':labels,'dueDate':due})
+      for suffix,due in [('早い','2029-01-01'),('なし','')]:
+       res=page.request.post(api+'/api/tasks',data={'title':marker+'-'+suffix,'dueDate':due})
        assert res.ok
       page.locator('#refresh').click()
       page.locator('[data-filter=open]').click()
       page.locator('#list-options-summary').click()
-      page.locator('#label-filter').select_option(marker)
       page.locator('#task-sort').select_option('due-asc')
       headings=page.locator('.task-card h3')
       from playwright.sync_api import expect
@@ -80,7 +77,7 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
       assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
       assert not errors,errors
       page.screenshot(path=f'/tmp/tasks-repeat-list-{width}.png',full_page=True)
-      print(f'{width}px: create/monthly completion/custom weekly edit/disable/filter/sort/reload passed',flush=True)
+      print(f'{width}px: create/monthly completion/custom weekly edit/disable/sort/reload passed',flush=True)
      finally:
       tasks=page.request.get(api+'/api/tasks').json()['tasks']
       for t in tasks:

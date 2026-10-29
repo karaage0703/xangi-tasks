@@ -54,7 +54,7 @@ working / review / failed --execution/reset--> idle
 - `POST /api/inbox`: 根拠付き候補をInboxへ登録。
 - `GET /api/inbox/capabilities`: `sourceKeys: true`と`statusModel: 2`を返します。
 - `GET /api/tasks/:id?history=0`: 会話履歴を取得せずタスクを取得。
-- `PUT /api/tasks/:id`: タイトル・説明・メモ・ラベル・期限・繰り返し・カテゴリを編集。状態は専用APIで変更します。
+- `PUT /api/tasks/:id`: タイトル・説明・メモ・期限・繰り返し・カテゴリを編集。状態は専用APIで変更します。
 - `POST /api/tasks/:id/open`: Inboxの採用、またはClosedの再オープン。Open / idleへ移します。
 - `POST /api/tasks/:id/dismiss`: Inboxを却下。Closed / idle、理由はdismissed。
 - `POST /api/tasks/:id/close`: 完了。Closed / idle、理由はcompleted。
@@ -86,7 +86,7 @@ Export形式は`xangi-tasks-backup`、`version: 2`です。候補・却下・完
 
 ## UI
 
-タブはInbox / Open / Closed / All。詳細の「状態」は3つのタスク状態、「実行状態」は進行状況を表示します。カテゴリ・フォルダ開閉・タブ・ラベル・並び順は同じブラウザで復元します。削除されたカテゴリは全カテゴリへ戻します。
+Inboxはカテゴリ一覧の独立項目、通常のタブはOpen / Closed / All。詳細では状態と進捗を小さく自動表示し、どちらも選択欄は置きません。手動の着手・リセットボタンも置きません。完了と再オープンは一覧のチェック、候補の採用は詳細の「採用してOpenへ」で行えます。カテゴリ・フォルダ開閉・タブ・並び順は同じブラウザで復元します。削除されたカテゴリは全カテゴリへ戻します。
 
 デスクトップは分類・一覧・詳細、モバイルは詳細と分類を必要時に開きます。タイトルと説明は直接編集し、メタデータは変更時に保存します。画面はxangiの配色・テーマを使い、テーマはlight / dark / systemです。タスクや分類のドラッグ移動は同じ更新APIを使い、失敗時は保存内容を再取得します。
 
@@ -95,3 +95,9 @@ Export形式は`xangi-tasks-backup`、`version: 2`です。候補・却下・完
 同梱スキルがxangi-mailの重要メール、本人の会話、指定Googleカレンダーを読み、原文と既存タスクを照合してInboxへ登録します。`sourceKey`で採用・却下・削除後も同じ出典の重複を防ぎます。取得失敗・判断保留は再確認対象として残し、自動承認・実行はしません。
 
 Notion親ページ設定は`PUT /api/settings/notion`、タスク別ページは`POST/PUT /api/tasks/:id/notion`、添付は`POST /api/tasks/:id/notion/files`です。認証情報はサーバーだけで扱い、結果が不確かな作成・添付を自動再送しません。全体バックアップはNotionではなくExport / Importを使います。
+
+一覧の選択中タブ名はタブ内だけに表示し、上の見出しにはカテゴリを12pxで表示します。タブと更新ボタンは同じ行に置きます。設定ボタンと表示テーマの文字は16pxに統一します。一覧は14pxのタイトルと44px以上の操作領域を使い、編集欄は16px・高さ44pxへ統一します。
+
+期限とカテゴリを横並びに配置します。
+
+Inboxはカテゴリ一覧先頭の独立した受信箱です。カテゴリの絞り込みを適用せず全候補を表示し、通常のカテゴリのOpen/Closed/Allには候補を混ぜません。候補のcategoryIdは仮分類で、変更してもInboxのままです。「採用してOpenへ」で仮分類を保持してOpenへ移ります。

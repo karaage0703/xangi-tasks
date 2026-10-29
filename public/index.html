@@ -43,17 +43,17 @@
           </aside>
           <section class="workspace" aria-live="polite">
             <div class="section-heading list-heading">
-              <div><p id="selected-category" class="selected-category"></p><h2 id="view-title">Open</h2></div>
-              <button class="button" id="refresh" aria-label="タスクを更新">更新</button>
+              <div><h2 id="selected-category" class="selected-category"></h2><span id="view-title" class="sr-only">Open</span></div>
             </div>
+            <div class="filter-toolbar">
             <nav class="filters" aria-label="タスク表示">
-              <button class="nav-item" data-filter="inbox">Inbox <span id="count-inbox">0</span></button>
               <button class="nav-item active" data-filter="open">Open <span id="count-open">0</span></button>
               <button class="nav-item" data-filter="closed">Closed <span id="count-closed">0</span></button>
               <button class="nav-item" data-filter="all">All <span id="count-all">0</span></button>
             </nav>
-            <details class="list-options-disclosure"><summary id="list-options-summary">絞り込み・並べ替え</summary><div class="list-options">
-              <label>ラベル<select id="label-filter"><option value="">すべてのラベル</option></select></label>
+            <button class="button" id="refresh" aria-label="タスクを更新">更新</button>
+            </div>
+            <details class="list-options-disclosure"><summary id="list-options-summary">並べ替え</summary><div class="list-options">
               <label>並べ替え<select id="task-sort"><option value="created">追加順（新しい順）</option><option value="due-asc">期限が近い順</option><option value="due-desc">期限が遠い順</option></select></label>
             </div>
             </details>
@@ -69,10 +69,7 @@
         <header class="detail-header"><div class="detail-title-field"><label for="detail-title">タイトル</label><input id="detail-title" name="title" form="quick-edit" maxlength="160" required aria-describedby="quick-save-status" /></div><button class="icon-button" id="close-detail" aria-label="閉じる">×</button></header>
         <div class="detail-meta"><span class="status-badge" id="detail-status">未実施</span><span class="detail-session" id="detail-session"></span></div>
         <form id="quick-edit" class="quick-edit" aria-label="タスクをすぐ編集">
-          <label>状態<select id="quick-status" name="status" aria-label="状態"></select></label>
-          <label>実行状態<select id="quick-execution" name="executionStatus" aria-label="実行状態"></select></label>
           <label>期限<input id="quick-due" name="dueDate" type="date" /></label>
-          <label class="quick-labels">ラベル<input id="quick-labels" name="labels" placeholder="仕事, 個人" aria-describedby="quick-save-status" /></label>
           <label>カテゴリ<select id="quick-category" name="categoryId" class="category-select"><option value="">未分類</option></select></label>
           <p id="quick-save-status" role="status">変更すると保存します</p>
           <button id="quick-retry" class="button" type="submit" hidden>保存を再試行</button>
@@ -119,7 +116,6 @@
       <form id="task-form">
         <label>タイトル<input id="task-title" name="title" maxlength="160" placeholder="例：企画書のたたき台を作る" autocomplete="off" required /></label>
         <label>背景・完了条件<textarea id="task-description" name="description" rows="4" maxlength="4000" placeholder="xangiに渡したい背景や、どこまでできれば完了か"></textarea></label>
-        <label>ラベル（カンマ区切り）<input name="labels" placeholder="仕事, 個人活動" /></label>
         <label>カテゴリ<select name="categoryId" class="category-select"><option value="">未分類</option></select></label>
         <label>期限<input name="dueDate" type="date" /></label>
         <fieldset class="repeat-fields"><legend>繰り返し</legend>
@@ -159,7 +155,7 @@
         <p id="delegate-agent-hint" role="status"></p>
         <button type="button" class="button" id="save-default-agent">この依頼先を既定にする</button>
         <label>追加の指示（任意）<textarea name="instructions" rows="4" maxlength="4000" placeholder="今回お願いしたいこと、実行しないでほしいこと"></textarea></label>
-        <p>開いている会話には追加で依頼し、閉じた後は新しい会話を作ります。タイトル・背景と完了条件・期限・ラベル・追加指示を送ります。メモは自動では送りません。</p>
+        <p>開いている会話には追加で依頼し、閉じた後は新しい会話を作ります。タイトル・背景と完了条件・期限・追加指示を送ります。メモは自動では送りません。</p>
         <p id="delegate-error" role="alert" hidden></p>
         <footer class="detail-footer"><button type="submit" class="button primary">依頼を送信</button></footer>
       </form>
@@ -169,7 +165,6 @@
         <h2 id="edit-heading">タスクを編集</h2>
         <label>タイトル<input name="title" maxlength="160" required /></label>
         <label>背景・完了条件<textarea name="description" maxlength="4000"></textarea></label>
-        <label>ラベル（カンマ区切り）<input name="labels" placeholder="仕事, 個人活動" /></label>
         <label>カテゴリ<select name="categoryId" class="category-select"><option value="">未分類</option></select></label>
         <label>期限<input name="dueDate" type="date" /></label>
               <fieldset class="repeat-fields"><legend>繰り返し</legend>
