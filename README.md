@@ -27,6 +27,7 @@ xangiの「拡張」からxangi-tasksを開きます。
 
 - [使い方・設定・動作確認](docs/usage.md)
 - [設計・API](docs/design.md)
+- [Notion連携CLI（既存ページの登録・確認）](docs/usage.md#notion連携cli)
 
 ## ライセンス
 

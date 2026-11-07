@@ -41,6 +41,7 @@
             <nav id="category-tree" aria-label="カテゴリを選ぶ"></nav>
             <div class="category-add"><button class="button" id="add-category">＋ カテゴリ</button><button class="button" id="add-folder">＋ フォルダ</button></div>
           </aside>
+          <div id="resize-categories" class="pane-resizer" role="separator" tabindex="0" aria-label="カテゴリの幅" aria-orientation="vertical" aria-controls="category-sidebar" title="ドラッグまたは矢印キーで幅を調整。ダブルクリックで初期幅"></div>
           <section class="workspace" aria-live="polite">
             <div class="section-heading list-heading">
               <div><h2 id="selected-category" class="selected-category"></h2><span id="view-title" class="sr-only">Open</span></div>
@@ -64,6 +65,7 @@
               <p id="connection-detail">接続しています…</p>
             </details>
           </section>
+    <div id="resize-detail" class="pane-resizer detail-resizer" role="separator" tabindex="0" aria-label="詳細の幅" aria-orientation="vertical" aria-controls="task-dialog" title="ドラッグまたは矢印キーで幅を調整。ダブルクリックで初期幅"></div>
     <dialog class="task-dialog" id="task-dialog" aria-label="タスク詳細">
       <div class="detail-shell">
         <header class="detail-header"><div class="detail-title-field"><label for="detail-title">タイトル</label><input id="detail-title" name="title" form="quick-edit" maxlength="160" required aria-describedby="quick-save-status" /></div><button class="icon-button" id="close-detail" aria-label="閉じる">×</button></header>

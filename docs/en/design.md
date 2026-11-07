@@ -56,7 +56,7 @@ The browser and server share definitions and validation in `public/task-state.js
 
 A Project controls its agent and destination; otherwise the selected agent is used. Open conversations are reused; closed conversations are replaced. Destination changes require closing the existing conversation.
 
-Native Project/agent dispatch persists the conversation ID before returning HTTP 202; the UI navigates to that conversation. Acceptance does not guarantee delivery or completion. Completing these tasks does not close their xangi conversation.
+Native Project/agent dispatch persists the conversation ID before returning HTTP 202; the UI opens that conversation in a new tab (or window, depending on browser settings), keeping the task page open. A blank tab is reserved during submission and navigated after acceptance. Failed requests or responses without a conversation URL close the reserved tab. If the popup is blocked or the tab is closed, delegation continues and the UI directs the user to the conversation link in task details. Acceptance does not guarantee delivery or completion. Completing these tasks does not close their xangi conversation.
 
 A per-task lock covers sending, preventing premature polling and duplicate delegation. Late responses/errors cannot reopen Closed tasks. Restart resumes polling without resending the request. For recorded conversation modes requiring closure confirmation, completing and completionOriginPhase are persisted; a busy conversation returns 202 with completionPending:true. Polling retries closure before marking the task Closed. Pending completion blocks deletion, redelegation and manual execution changes.
 
@@ -83,3 +83,7 @@ The selected tab name appears only in the tabs; the list heading shows the categ
 The detail panel places due date and category side by side.
 
 Inbox is an independent sidebar destination above categories. It ignores category filters; category Open/Closed/All views exclude Inbox items. Candidate categoryId is provisional: editing it does not accept the item, and acceptance preserves it.
+
+## Notion linking CLI
+
+`skills/xs-xangi-tasks/scripts/tasks.py` uses authenticated xangi `extension_request` calls. `notion link` performs GET, PUT `/api/tasks/:id/notion` with `page`, then GET to verify saved values; `notion show` only performs GET. Task IDs are encoded as a single path segment. Mutations are never automatically retried. Task notes and Notion page content are unchanged, and output distinguishes saved API values from UI verification.

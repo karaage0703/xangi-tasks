@@ -19,4 +19,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: pip install uv
+      - run: npm run test:notion-cli
       - run: npm run build

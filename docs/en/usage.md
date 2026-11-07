@@ -138,6 +138,8 @@ Task details offer delegation with a link to its xangi conversation. Candidates 
 
 For a task that is not currently being dispatched or running, choose an agent or Project in the delegation dialog. A Project uses its configured agent/team; a Project linked to Discord or Slack creates a channel thread and synchronizes requests and replies. The form identifies the destination before sending. Saving a default does not execute a task and applies across devices.
 
+After acceptance, the conversation opens in a new tab (or window, depending on browser settings), keeping the original task page open. A blank tab appears while submitting and closes if the request fails. If your browser blocks the popup, use “xangiの会話を開く” in task details.
+
 Open conversations are reused. Close the conversation in xangi before requesting a new one or changing its destination. Completing a task does not close its new conversation. Results live in xangi; task details provide a conversation link instead of a separate results panel. Personal notes are not sent automatically.
 
 `GET /api/projects` lists destinations. Settings and delegation accept `projectId` and `agentId`; omission uses the saved default, an empty project means Web only, and a selected project controls the agent. Settings persist in the `.settings.json` sidecar. Back it up alongside task and collection data.
@@ -159,3 +161,27 @@ POST /api/inbox accepts an optional sourceKey of up to 300 characters. Retrying 
 Open Inbox from the top of the category menu. Candidates show a proposed category that can be changed in details without accepting them. Use the acceptance button to move an item to Open while keeping its category.
 
 Labels are removed. Old exports containing labels are rejected. For an existing deployment, stop the extension and run `node scripts/remove-task-labels.js <tasks.json> <new-file.json>` before replacing the data file. Keep the original as a backup; all other task fields are preserved.
+
+## Notion linking CLI
+
+A Notion URL in Notes does not register a task's linked Notion page. The bundled CLI links an existing page and verifies the saved association. It uses uv and the Python standard library; it is not a subcommand of the xangi executable.
+
+Run from the repository root. Set `XANGI_CLI` to the absolute xangi executable path specified by your instance's system context. Use a raw `TASK_ID` after confirming the connection, and an existing page URL or ID for `NOTION_PAGE`.
+
+```bash
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --help
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --xangi-cli "${XANGI_CLI}" notion link "${TASK_ID}" "${NOTION_PAGE}"
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --xangi-cli "${XANGI_CLI}" notion show "${TASK_ID}"
+```
+
+`link` replaces any existing association. It does not create pages or edit page content or task notes. It reads the task, calls the linking API, then reads again to compare `notionPageId` and `notionPageUrl`. Success returns the title, status, linked URL and `verified: saved-link`. `uiVerified: false` distinguishes API verification from UI verification. `show` only reads saved values; it does not check current Notion permissions.
+
+Connection, authorization and verification failures exit with code 1. A timeout is not retried automatically; use `show` to check saved state. Existing extension and Notion authentication settings are reused without passing keys to this CLI.
+
+Run CLI regression tests with `npm run test:notion-cli` (requires uv).
+
+## Pane widths
+
+On desktop (901px and wider), drag the boundaries between categories, list and details. The list fills the remaining space. Focus a separator with Tab and use arrow keys (Shift for larger steps), Home/End, or double-click to reset. Widths persist per browser and are constrained on smaller windows to keep the list usable. Mobile retains its category drawer and full-screen details.
+
+Task list and detail API responses include notes in `notes`, so AI can retrieve them when asked to check a task. Notes are not automatically included in the “Delegate to xangi” message.
