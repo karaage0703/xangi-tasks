@@ -17,3 +17,21 @@
 Python標準ライブラリとuv、認証済みのxangi CLIを使います。collect_candidates.pyのcollectで材料を保存し、スキルが判断したJSONをapplyへ渡します。候補化する判断をスクリプトのキーワード判定で代用しません。定期実行の設定例・出典重複防止・失敗時の再開は[候補収集手順](references-candidates.md)を参照してください。
 
 状態ファイルとスナップショットには私的な内容を含むため非公開directoryに保存します。xangi-tasksの状態モデル2・sourceKey対応版が必要で、メールを読む場合はxangi-mailの取得APIも必要です。旧版・認証失敗では停止し、タスクの直接未実施登録へ迂回しません。
+
+## Notion連携コマンド
+
+既存のNotionページをタスクの「Notionを開く」に登録できます。メモへのURL記載とは別の操作です。スキル同梱CLIで、xangi本体のサブコマンドではありません。
+
+ワークスペースルートで、`XANGI_CLI`を使用中インスタンスのsystem contextにある絶対パスへ設定し、`TASK_ID`・`NOTION_PAGE`を対象の値へ置き換えます。
+
+```bash
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --help
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --xangi-cli "${XANGI_CLI}" notion link "${TASK_ID}" "${NOTION_PAGE}"
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --xangi-cli "${XANGI_CLI}" notion show "${TASK_ID}"
+```
+
+`link`は既存連携先を置き換え、再取得で保存結果を照合します。タスク名・状態・連携先をJSONで返し、画面確認の有無は別項目で示します。ページを新規作成したり、メモやNotion本文を書き換えたりはしません。
+
+必要なものはuv、Python標準ライブラリ、xangi CLI、Notion連携API対応のxangi-tasksです。Notion認証は既存のサーバー設定を使います。CLIにキーを渡す必要はありません。失敗・タイムアウト時は自動再送せず、`show`で状態を確認してください。404や権限エラーでは接続先・タスクID・Notionページの共有設定を確認します。
+
+検証: `uv run python -m unittest discover -s test -p test_tasks_notion_cli.py`

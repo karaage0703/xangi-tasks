@@ -364,3 +364,18 @@ body[data-drag-kind="task"] [data-drop-kind="category"], body[data-drag-kind="ca
 .inbox-choice { margin-bottom: 8px; border-bottom: 1px solid var(--hairline); border-radius: 0; min-height: 44px; }
 .inbox-choice span { margin-left: 6px; font-size: 12px; color: var(--ink-muted); }
 .inbox-view .filter-toolbar { justify-content: flex-end; height: 30px; }
+
+/* Splitters retain the existing workbench and mobile dialog flow. */
+.pane-resizer { display: none; }
+@media (min-width: 901px) {
+  .tasks-layout { grid-template-columns: var(--category-width, 210px) 12px minmax(240px, 1fr); gap: 0; }
+  .tasks-layout:has(#task-dialog[open]) { grid-template-columns: var(--category-width, 210px) 12px minmax(240px, 1fr) 12px var(--detail-width, 340px); }
+  #task-dialog { width: 100%; }
+  .pane-resizer { display: block; position: sticky; top: 16px; height: calc(100dvh - 32px); cursor: col-resize; touch-action: none; outline-offset: -3px; }
+  .pane-resizer::after { content: ''; position: absolute; left: 5px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .pane-resizer:hover::after, .pane-resizer:focus-visible::after { background: var(--accent); }
+  .detail-resizer { display: none; }
+  .tasks-layout:has(#task-dialog[open]) .detail-resizer { display: block; }
+  body:has(#task-dialog[open]) .create-launcher { right: calc(var(--detail-width, 340px) + 36px); }
+}
+body.resizing-panes { cursor: col-resize; user-select: none; }

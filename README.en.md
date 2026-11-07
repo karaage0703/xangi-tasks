@@ -27,6 +27,7 @@ Open xangi-tasks from the xangi Extensions screen.
 
 - [Usage, configuration, and verification](docs/en/usage.md)
 - [Design and API](docs/en/design.md)
+- [Notion linking CLI](docs/en/usage.md#notion-linking-cli)
 
 ## License
 

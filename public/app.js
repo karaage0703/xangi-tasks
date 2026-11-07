@@ -14,6 +14,7 @@ const timeFormatter = new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 
 const dateFormatter = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' });
 let renderedDate = '';
 let tasksLoading = false;
+let taskRows = new Map();
 let detailRequest = 0;
 let detailLoadingId = null;
 let quickTaskId = null;
@@ -235,14 +236,19 @@ async function saveQuickEdit() {
   const status = document.querySelector('#quick-save-status');
   status.textContent = '保存中…';
   try {
-    await api(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    const { task } = await api(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    // The mutation returns the saved task; avoid two extra round trips before unlocking inputs.
+    detailRequest++;
+    detailLoadingId = null;
+    state.tasks = state.tasks.map(item => item.id === id ? task : item);
     if (state.selectedTaskId === id) {
       quickDirty.clear();
       status.textContent = '保存しました';
       document.querySelector('#quick-retry').hidden = true;
-      await loadTaskDetail();
+      state.detail = { ...state.detail, task };
+      renderDetail();
     }
-    await loadTasks();
+    render();
   } catch (error) {
     if (state.selectedTaskId === id) {
       status.textContent = `保存できませんでした: ${error.message}`;
@@ -340,7 +346,22 @@ function render() {
   const focusId = focused?.dataset.id;
   const focusAction = focused?.dataset.action;
   const focusIndex = focused ? [...grid.children].indexOf(focused.closest('.task-card')) : -1;
-  grid.replaceChildren(...visible.map(task => renderTask(task, renderedDate)));
+  const nextRows = new Map();
+  const rows = visible.map(task => {
+    const signature = JSON.stringify([task, renderedDate, state.filter, state.selectedTaskId === task.id, state.busy.has(task.id), task.status === 'inbox' ? state.collections.categories : null]);
+    const cached = taskRows.get(task.id);
+    const row = cached?.signature === signature ? cached.row : renderTask(task, renderedDate);
+    nextRows.set(task.id, { signature, row });
+    return row;
+  });
+  taskRows = nextRows;
+  rows.forEach((row, i) => {
+    const current = grid.children[i];
+    if (row === current) return;
+    if (current?.dataset.id === row.dataset.id) grid.replaceChild(row, current);
+    else grid.insertBefore(row, current || null);
+  });
+  while (grid.children.length > rows.length) grid.lastElementChild.remove();
   if (focused) {
     const same = [...grid.querySelectorAll('button')].find(button => button.dataset.id === focusId && button.dataset.action === focusAction && !button.disabled);
     const next = grid.children[Math.min(focusIndex, grid.children.length - 1)]?.querySelector('.task-open');
@@ -1054,18 +1075,35 @@ delegateForm.addEventListener('submit', async event => {
   if (submittingDelegation || state.busy.has(id) || delegateForm.querySelector('[type=submit]').disabled) return;
   submittingDelegation = true; state.busy.add(id); delegationError('');
   delegateForm.querySelector('[type=submit]').disabled = defaultAgentButton.disabled = true;
+  // Reserve a tab during the click; opening after the API response can be blocked.
+  let conversationWindow = null;
+  let conversationOpened = false;
+  try {
+    conversationWindow = window.open('', '_blank');
+    if (conversationWindow) {
+      conversationWindow.opener = null;
+      conversationWindow.document.title = 'xangiへ依頼中…';
+    }
+  } catch { /* Keep delegation available when popups are unavailable. */ }
   try {
     const accepted = await api(`/api/tasks/${id}/delegate`, { method: 'POST', body: JSON.stringify({ agentId: delegateForm.elements.agentId.value, projectId: delegateForm.elements.projectId.value, instructions: delegateForm.elements.instructions.value }) });
     delegateDialog.close();
     const conversation = conversationUrl(accepted.task, accepted.xangiOrigin);
-    if (conversation) { location.assign(conversation.href); return; }
+    if (conversation && conversationWindow && !conversationWindow.closed) {
+      try {
+        conversationWindow.location.replace(conversation.href);
+        conversationOpened = true;
+        conversationWindow = null;
+      } catch { /* The conversation link remains available in the task detail. */ }
+    }
     document.querySelector('[data-filter=open]').click();
     await loadTasks(); await loadTaskDetail();
-    showToast('xangiへ依頼しました');
+    showToast(conversation && !conversationOpened ? '依頼しました。タスク詳細の「xangiの会話を開く」から開いてください' : 'xangiへ依頼しました');
   } catch (error) {
     delegationError(error.message);
     await loadTasks({ quiet: true }); await loadTaskDetail({ quiet: true });
   } finally {
+    if (conversationWindow && !conversationWindow.closed) conversationWindow.close();
     submittingDelegation = false; state.busy.delete(id);
     delegateForm.querySelector('[type=submit]').disabled = defaultAgentButton.disabled = false;
     render(); renderDetail();
@@ -1217,3 +1255,77 @@ importConfirm.addEventListener('click', () => transfer(async () => {
   transferStatus.textContent = `${result.tasks}件のタスクをImportしました。画面を再読み込みします`;
   const url = new URL(location.href); url.searchParams.delete('task'); location.assign(url.href);
 }));
+
+// Widths are browser preferences; narrowing the window never overwrites the saved choice.
+const paneLayout = document.querySelector('.tasks-layout');
+const paneWidths = {};
+for (const name of ['categories', 'detail']) {
+  const saved = Number(readPreference(`tasks-width-${name}`));
+  paneWidths[name] = Number.isFinite(saved) && saved > 0 ? saved : null;
+}
+function layoutPanes() {
+  if (innerWidth <= 900) return;
+  const width = paneLayout.clientWidth;
+  const detail = dialog.open;
+  const gap = detail ? 24 : 12;
+  const categoryDefault = innerWidth <= 1100 ? 170 : 210;
+  const detailDefault = innerWidth <= 1100 ? 340 : 420;
+  const categoryMax = Math.max(160, width - gap - 240 - (detail ? 280 : 0));
+  const categories = Math.round(Math.max(160, Math.min(paneWidths.categories ?? categoryDefault, categoryMax)));
+  const detailMax = Math.max(280, width - gap - 240 - categories);
+  const detailWidth = Math.round(Math.max(280, Math.min(paneWidths.detail ?? detailDefault, detailMax)));
+  document.documentElement.style.setProperty('--category-width', `${categories}px`);
+  document.documentElement.style.setProperty('--detail-width', `${detailWidth}px`);
+  for (const [name, value, min, max] of [['categories', categories, 160, categoryMax], ['detail', detailWidth, 280, detailMax]]) {
+    const handle = document.querySelector(`#resize-${name}`);
+    handle.setAttribute('aria-valuemin', min);
+    handle.setAttribute('aria-valuemax', max);
+    handle.setAttribute('aria-valuenow', value);
+    handle.setAttribute('aria-valuetext', `${value}px`);
+  }
+}
+for (const name of ['categories', 'detail']) {
+  const handle = document.querySelector(`#resize-${name}`);
+  let pointer = null;
+  const setWidth = value => {
+    paneWidths[name] = Math.max(Number(handle.getAttribute('aria-valuemin')), Math.min(value, Number(handle.getAttribute('aria-valuemax'))));
+    layoutPanes();
+  };
+  const persist = () => writePreference(`tasks-width-${name}`, paneWidths[name] ?? '');
+  const finish = cancelled => {
+    if (!pointer) return;
+    const previous = pointer;
+    pointer = null;
+    if (cancelled) { paneWidths[name] = previous.saved; layoutPanes(); } else persist();
+    document.body.classList.remove('resizing-panes');
+    if (handle.hasPointerCapture(previous.id)) handle.releasePointerCapture(previous.id);
+  };
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !event.isPrimary || innerWidth <= 900) return;
+    layoutPanes();
+    pointer = { id: event.pointerId, x: event.clientX, width: Number(handle.getAttribute('aria-valuenow')), saved: paneWidths[name] };
+    handle.setPointerCapture(event.pointerId);
+    handle.focus({ preventScroll: true });
+    document.body.classList.add('resizing-panes');
+    event.preventDefault();
+  });
+  handle.addEventListener('pointermove', event => {
+    if (pointer?.id === event.pointerId) setWidth(pointer.width + (event.clientX - pointer.x) * (name === 'detail' ? -1 : 1));
+  });
+  handle.addEventListener('pointerup', () => finish(false));
+  handle.addEventListener('pointercancel', () => finish(true));
+  handle.addEventListener('lostpointercapture', () => finish(true));
+  handle.addEventListener('dblclick', () => { paneWidths[name] = null; persist(); layoutPanes(); });
+  handle.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && pointer) { event.preventDefault(); event.stopPropagation(); finish(true); return; }
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const current = Number(handle.getAttribute('aria-valuenow'));
+    setWidth(event.key === 'Home' ? Number(handle.getAttribute('aria-valuemin')) : event.key === 'End' ? Number(handle.getAttribute('aria-valuemax')) : current + (event.key === 'ArrowRight' ? 1 : -1) * (name === 'detail' ? -1 : 1) * (event.shiftKey ? 40 : 10));
+    persist();
+  });
+}
+new ResizeObserver(layoutPanes).observe(paneLayout);
+new MutationObserver(layoutPanes).observe(dialog, { attributes: true, attributeFilter: ['open'] });
+window.addEventListener('resize', layoutPanes);
+layoutPanes();

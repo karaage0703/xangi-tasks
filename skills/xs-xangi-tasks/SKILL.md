@@ -1,6 +1,6 @@
 ---
 name: xs-xangi-tasks
-description: xangi-tasksのリンクからタスクを取得し、追加・編集・状態変更・カテゴリ整理・エージェントへの依頼を行う。「候補を拾って」「メール・会話・カレンダーからタスクを探して」「このタスクを見て」「タスクに追加して」「完了にして」「このエージェントに任せて」と言われた時に使う。
+description: xangi-tasksのリンクからタスクを取得し、追加・編集・状態変更・カテゴリ整理・Notion連携・エージェントへの依頼を行う。「候補を拾って」「メール・会話・カレンダーからタスクを探して」「このタスクを見て」「タスクに追加して」「完了にして」「Notionに連携して」「このエージェントに任せて」と言われた時に使う。
 ---
 
 # xangi-tasks
@@ -39,6 +39,20 @@ IDがない場合は`GET /api/tasks`の`tasks`からタイトル・状態・期�
 本人の「追加して」は`POST /api/tasks`で未着手にする。本人が承認していない自動抽出は`POST /api/inbox`へ`title`、`sourceText`等を送り、候補として扱う。
 
 `history=0`はタスクを取得し、会話履歴は取得しない。新しい依頼の結果は`task.xangiSessionId`の会話で確認する。`task.error`は送信・実行時のエラー。
+
+### Notionの既存ページを連携する
+
+「Notionをタスクに連携して」は、メモへのURL追記ではなく専用の連携先を登録する。ページを別スキルで作成済みの場合も、対象タスクへの連携をここで行う。Step 1で接続先・対象IDを確認し、本人が指定したページを使う。既存の連携先があれば置き換わるので、依頼範囲に含まれることを確認する。
+
+以下はワークスペースルートで実行する。`TASK_ID`は未エンコードのID、`NOTION_PAGE`は確認済みURLまたはID。`XANGI_CLI`はsystem contextの絶対パスを使う。
+
+```bash
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --help
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --xangi-cli "${XANGI_CLI}" notion show "${TASK_ID}"
+uv run python skills/xs-xangi-tasks/scripts/tasks.py --xangi-cli "${XANGI_CLI}" notion link "${TASK_ID}" "${NOTION_PAGE}"
+```
+
+`link`は取得→`PUT /api/tasks/<ID>/notion`（`{"page":"ページID"}`）→再取得を行い、`notionPageId`と`notionPageUrl`を照合する。タスク名・連携先URL・`verified: saved-link`を確認して報告する。`uiVerified: false`なので、画面の「Notionを開く」が表示されたとは報告しない。`show`は保存値の確認で、Notion側の現在の閲覧権限までは確認しない。
 
 ## Step 3: 状態と分類を更新する
 
@@ -92,6 +106,8 @@ HTTP 202は受付で、完了ではない。再取得で`status`と`executionSta
 更新後は対象を再取得し、変更した項目・状態を照合する。報告は「タスク名／行った操作／現在の状態／確認済みリンク」の順に短くまとめる。未実行・受付済み・完了を分ける。リンクはユーザーが渡したURLまたは確認済みの画面URLを使い、接続先を推測して作らない。
 
 ## よくある失敗
+
+- Notion: メモのURLだけでは連携されない。専用コマンドで登録する。失敗・タイムアウト時は自動再送せず`notion show`で保存値を確認する。ページ新規作成・添付はこのコマンドの対象外。
 
 - 接続不可・未登録: エラーと未実行の操作を報告し、別ポートや別インスタンスへ自動で切り替えない。
 - 404: 削除済み・別の接続先・ID違いを確認する。再作成しない。
