@@ -2,6 +2,12 @@
 
 ## Workflow
 
+<p>
+  <img src="../images/tasks-mobile.png" width="260" alt="Mobile UI with fictional tasks: the Open list, target dates, and task creation button">
+</p>
+
+Actual UI screenshot with fictional tasks, categories, and dates. On mobile, open task details from the list.
+
 1. Add and organize tasks.
 2. Copy the task link from its details.
 3. Paste into xangi to request retrieval or updates.
@@ -201,3 +207,18 @@ Run CLI regression tests with `npm run test:notion-cli` (requires uv).
 On desktop (901px and wider), drag the boundaries between categories, list and details. The list fills the remaining space. Focus a separator with Tab and use arrow keys (Shift for larger steps), Home/End, or double-click to reset. Widths persist per browser and are constrained on smaller windows to keep the list usable. Mobile retains its category drawer and full-screen details.
 
 Task list and detail API responses include notes in `notes`, so AI can retrieve them when asked to check a task. Notes are not automatically included in the “Delegate to xangi” message.
+
+## README screenshots
+
+From the repository root, run the following to capture the real desktop UI (1440×960px) and mobile UI (390×844px) as `docs/images/tasks-desktop.png` and `docs/images/tasks-mobile.png`.
+
+```bash
+npm ci
+uv run --with playwright python scripts/readme-screenshots.py
+```
+
+Chromium defaults to `/snap/bin/chromium`. Set `BROWSER_EXECUTABLE` to use another installation. Capture uses uv and Playwright without adding application dependencies. The capture environment needs the `ja_JP.UTF-8` locale.
+
+Date input display order depends on the browser language and locale. The script also fixes Chromium's startup language and process locale to Japanese, displaying dates in year/month/day order, such as `2030/04/15`. API and stored values use `2030-04-15`.
+
+The script seeds fictional data in a temporary store and uses a local server with a mock connector. Both browser and server dates are fixed to April 15, 2030, with Japanese UI, Asia/Tokyo time, and a light theme. No real data or credentials are used, and no xangi, Notion, or AI services are contacted. External browser requests are blocked. Task counts, desktop details, horizontal overflow, and JavaScript errors are checked before capture.
