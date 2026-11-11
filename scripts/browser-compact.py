@@ -8,7 +8,7 @@ with tempfile.TemporaryDirectory() as temp:
  server=subprocess.Popen(['node','--input-type=module','-e', '''
 import {TaskStore} from './src/task-store.js'; import {createTaskServer} from './src/app.js';
 const store=new TaskStore(process.env.TEST_DATA); await store.init();
-for (const title of ['買い物リストを整理する','週末の予定を確認する','読みかけの本を読む','写真を整理する','次の記事の構成を考える','資料の内容を確認する','来週の準備をする','気になった技術を試す','メモを見返す','部屋を片付ける']) await store.create({title,description:'背景と完了条件。詳細画面で全文を確認できます。'.repeat(8),dueDate:'2030-01-31'});
+for (const title of ['買い物リストを整理する','週末の予定を確認する','読みかけの本を読む','写真を整理する','次の記事の構成を考える','資料の内容を確認する','来週の準備をする','気になった技術を試す','メモを見返す','部屋を片付ける']) await store.create({title,description:'背景と完了条件。詳細画面で全文を確認できます。'.repeat(8),targetDate:'2030-01-31'});
 const app=createTaskServer({store,connector:{health:async()=>({version:'test'}),sendTask:async()=>({sessionId:'web-test'}),readHistory:async()=>[],completeSession:async()=>({ok:true}),readSession:async()=>({state:'idle',result:'確認済み'})},publicDir:process.env.PUBLIC_DIR||process.cwd()+'/public'});
 app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
 '''],cwd=root,env={**os.environ,'TEST_DATA':temp+'/tasks.json'},stdout=subprocess.PIPE,text=True)

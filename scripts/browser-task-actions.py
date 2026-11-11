@@ -45,7 +45,7 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
                     page.locator('#detail-actions [data-action=edit]').click()
                     form=page.locator('#edit-form')
                     form.locator('[name=description]').fill('編集した説明')
-                    form.locator('[name=dueDate]').fill('2026-10-31')
+                    form.locator('[name=targetDate]').fill('2026-10-31')
                     page.screenshot(path=f'/tmp/tasks-editor-{width}.png')
                     form.get_by_role('button',name='保存',exact=True).click()
                     form.wait_for(state='hidden')

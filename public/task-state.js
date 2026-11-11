@@ -15,7 +15,7 @@ export function phaseFields(phase) {
 }
 
 export function validateTaskState(task) {
-  if (!TASK_STATUSES.has(task.status) || !EXECUTION_STATUSES.has(task.executionStatus)) throw new Error('Invalid task state; convert old task data before starting');
+  if (!TASK_STATUSES.has(task.status) || !EXECUTION_STATUSES.has(task.executionStatus)) throw new Error('Invalid task state');
   if (task.status !== 'open' && task.executionStatus !== 'idle') throw new Error('Only open tasks can execute');
   if (task.status === 'closed' ? !['completed', 'dismissed'].includes(task.closedReason) : task.closedReason !== null) throw new Error('Invalid close reason');
   return task;
