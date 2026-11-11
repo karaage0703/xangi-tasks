@@ -54,7 +54,7 @@ working / review / failed --execution/reset--> idle
 - `POST /api/inbox`: 根拠付き候補をInboxへ登録。
 - `GET /api/inbox/capabilities`: `sourceKeys: true`と`statusModel: 2`を返します。
 - `GET /api/tasks/:id?history=0`: 会話履歴を取得せずタスクを取得。
-- `PUT /api/tasks/:id`: タイトル・説明・メモ・期限・繰り返し・カテゴリを編集。状態は専用APIで変更します。
+- `PUT /api/tasks/:id`: タイトル・説明・メモ・目標日・実際の締切・繰り返し・カテゴリを編集。状態は専用APIで変更します。
 - `POST /api/tasks/:id/open`: Inboxの採用、またはClosedの再オープン。Open / idleへ移します。
 - `POST /api/tasks/:id/dismiss`: Inboxを却下。Closed / idle、理由はdismissed。
 - `POST /api/tasks/:id/close`: 完了。Closed / idle、理由はcompleted。
@@ -78,7 +78,7 @@ Projectなしでは選択したエージェント、ProjectありではそのPro
 
 書込みはキューで直列化し、一時ファイルからatomic renameします。分類・設定はタスクJSONの`.collections.json`・`.settings.json`へ保存します。失敗時はメモリの変更も戻します。複数プロセスが同じデータを書く構成は対象外です。
 
-繰り返しは`repeat={unit,interval,daysOfWeek}`、未指定はnullです。期限計算はJST、週は月曜始まり、月末・閏年を補正します。完了と次回Open / idleの生成を一度の保存で行い、`nextTaskId`により再完了・再オープン・次回削除後の二重生成を防ぎます。
+繰り返しは`repeat={unit,interval,daysOfWeek}`、未指定はnullです。繰り返し日付計算はJST、週は月曜始まり、月末・閏年を補正します。完了と次回Open / idleの生成を一度の保存で行い、`nextTaskId`により再完了・再オープン・次回削除後の二重生成を防ぎます。
 
 Export形式は`xangi-tasks-backup`、`version: 2`です。候補・却下・完了を含み、削除済みと認証キーは除きます。Importは内容と現在の保存データに結び付いた確認tokenを使い、確認後の変更や実行中タスクがあれば拒否します。取り込む実行中タスクはOpen / reviewにして、自動再実行しません。
 
@@ -98,10 +98,16 @@ Notion親ページ設定は`PUT /api/settings/notion`、タスク別ページは
 
 一覧の選択中タブ名はタブ内だけに表示し、上の見出しにはカテゴリを12pxで表示します。タブと更新ボタンは同じ行に置きます。設定ボタンと表示テーマの文字は16pxに統一します。一覧は14pxのタイトルと44px以上の操作領域を使い、編集欄は16px・高さ44pxへ統一します。
 
-期限とカテゴリを横並びに配置します。
+日付と、目標日を基準とする繰り返し設定を詳細フォームへ配置します。確認状態・根拠は折りたたみ、カテゴリは移動ハンドルから詳細設定を開いて変更します。本文は「タスクの内容」と呼び、メモとともに初期高さ180pxで編集します。
 
 Inboxはカテゴリ一覧先頭の独立した受信箱です。カテゴリの絞り込みを適用せず全候補を表示し、通常のカテゴリのOpen/Closed/Allには候補を混ぜません。候補のcategoryIdは仮分類で、変更してもInboxのままです。「採用してOpenへ」で仮分類を保持してOpenへ移ります。
 
 ## Notion連携CLI
 
 `skills/xs-xangi-tasks/scripts/tasks.py`は認証済みのxangi `extension_request`を使用します。`notion link`はGET→PUT `/api/tasks/:id/notion`（`page`）→GETで保存値を照合し、`notion show`はGETのみです。タスクIDは1つのpath segmentへエンコードします。更新の自動再送はせず、失敗を成功と報告しません。タスクメモやNotion本文は変更せず、API保存確認とUI確認は出力で区別します。
+
+## 日付の契約
+
+`targetDate`は自主的な目標日。`deadlineStatus`はunknown / none / confirmedで、confirmedだけがYYYY-MM-DD形式の`deadlineAt`を持ちます。根拠は`deadlineEvidence`。保存・Import時は同一のバリデーションを使います。Export version 2は維持し、旧日付のあるデータは移行スクリプトで変換してから利用します。`GET /api/tasks`は全件と`datePolicy`・ID別`dateSummaries`（今日の目標・目標日超過・7日以内の締切・締切超過）を返します。締切・目標日とも日本の暦日で判定します。締切は画面・API・保存・Export/Importですべて日付のみを扱います。日時形式は受け付けず、自動変換もしません。UIと委任は共有の`public/task-dates.js`を使用し、拡張HTMLにも埋め込みます。
+
+`PUT /api/tasks/:id`は`sourceText`（4000文字）、`sourceUrl`（http/https、2000文字）、`sourceSpeaker`（120文字）で会話の根拠を編集します。省略は保持、空文字は消去。保存先は既存の`source.text/url/speaker`で、`source.key`は編集対象外です。締切の根拠は`deadlineEvidence`で独立に編集します。

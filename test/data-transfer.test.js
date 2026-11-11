@@ -13,7 +13,7 @@ async function fixture() {
   const folder=await store.saveCollection('folders',{name:'Folder'});
   const category=await store.saveCollection('categories',{name:'Category',folderId:folder.id});
   await store.saveCollection('categories',{name:'Empty category'});
-  const task=await store.create({title:'Todo',categoryId:category.id,notes:'latest',repeat:{unit:'week',interval:2,daysOfWeek:[1,3]},dueDate:'2026-10-26'});
+  const task=await store.create({title:'Todo',categoryId:category.id,notes:'latest',repeat:{unit:'week',interval:2,daysOfWeek:[1,3]},targetDate:'2026-10-26'});
   const candidate=await store.createInboxItem({title:'Candidate',sourceText:'evidence',sourceUrl:'https://example.com/',type:'waiting'});
   const done=await store.create({title:'Done'});await store.update(done.id,{...phaseFields('closed')});
   const deleted=await store.create({title:'Deleted'});await store.remove(deleted.id);

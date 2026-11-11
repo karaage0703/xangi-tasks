@@ -24,35 +24,35 @@ test('invalid recurrence rejected and disabling recurrence is explicit', () => {
 test('completion atomically persists one fresh occurrence even on concurrent repeat requests and reload', async()=>{
   const file=join(await mkdtemp(join(tmpdir(),'tasks-repeat-')),'tasks.json');
   const store=new TaskStore(file); await store.init();
-  const t=await store.create({title:'Monthly',description:'Context',notes:'This occurrence only',dueDate:'2026-01-31',repeat:rule('month')});
+  const t=await store.create({title:'Monthly',description:'Context',notes:'This occurrence only',targetDate:'2026-01-31',repeat:rule('month')});
   await store.update(t.id,{...phaseFields('review'),result:'old result',xangiSessionId:'old-session'});
   await Promise.all([store.complete(t.id,'2026-01-31'),store.complete(t.id,'2026-01-31')]);
   const reload=new TaskStore(file); await reload.init();
   assert.equal(reload.list().length,2);
   const next=reload.get(reload.get(t.id).nextTaskId);
   assert.equal(reload.get(t.id).notes,'This occurrence only'); assert.equal(next.notes || '', '');
-  assert.equal(next.dueDate,'2026-02-28'); assert.equal(taskPhase(next),'idle');
+  assert.equal(next.targetDate,'2026-02-28'); assert.equal(taskPhase(next),'idle');
   assert.equal(next.xangiSessionId,null); assert.equal(next.result,'');
   const third=(await reload.complete(next.id,'2026-02-28')).nextTask;
-  assert.equal(third.dueDate,'2026-03-31');
+  assert.equal(third.targetDate,'2026-03-31');
   await reload.remove(third.id);
   await reload.complete(next.id,'2026-02-28');
   assert.equal(reload.list().length,2); // Deleted next occurrence must not be recreated.
 });
 test('changing the schedule resets anchor; disabling it stops future occurrences',async()=>{
   const store=new TaskStore(join(await mkdtemp(join(tmpdir(),'tasks-repeat-')),'tasks.json')); await store.init();
-  const t=await store.create({title:'Edit',dueDate:'2026-01-31',repeat:rule('month')});
+  const t=await store.create({title:'Edit',targetDate:'2026-01-31',repeat:rule('month')});
   const next=(await store.complete(t.id,'2026-01-31')).nextTask;
-  await store.update(next.id,editableFields({dueDate:'2026-02-20'},next));
+  await store.update(next.id,editableFields({targetDate:'2026-02-20'},next));
   const third=(await store.complete(next.id,'2026-02-20')).nextTask;
-  assert.equal(third.dueDate,'2026-03-20');
+  assert.equal(third.targetDate,'2026-03-20');
   await store.update(third.id,editableFields({repeat:null},third));
   assert.equal((await store.complete(third.id,'2026-03-20')).nextTask,null);
 });
 test('failed persistence rolls completion back and retry creates exactly one successor',async()=>{
   const file=join(await mkdtemp(join(tmpdir(),'tasks-repeat-')),'tasks.json');
   const store=new TaskStore(file); await store.init();
-  const task=await store.create({title:'Retry',dueDate:'2026-10-07',repeat:rule('day')});
+  const task=await store.create({title:'Retry',targetDate:'2026-10-07',repeat:rule('day')});
   store.filePath=join(file,'missing','tasks.json');
   await assert.rejects(()=>store.complete(task.id,'2026-10-07'));
   assert.equal(taskPhase(store.get(task.id)),'idle'); assert.equal(store.list().length,1);

@@ -1,3 +1,4 @@
+import { dateSummary, sortTasks, dateOrderWarning } from './task-dates.js';
 import { taskPhase } from './task-state.js';
 function readPreference(key, fallback = '') {
   try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; }
@@ -22,7 +23,28 @@ let quickDirty = new Set();
 let quickSaving = false;
 let dragging = null;
 let moving = false;
-const state = { collections: { folders: [], categories: [] }, category: readPreference('tasks-category'), tasks: [], filter: 'open', sort: readPreference('tasks-sort', 'created'), busy: new Set(), selectedTaskId: null, detail: null };
+const state = { collections: { folders: [], categories: [] }, category: readPreference('tasks-category'), tasks: [], filter: 'open', sort: readPreference('tasks-sort', 'target-asc'), busy: new Set(), selectedTaskId: null, detail: null };
+const sortLabels = { 'created-asc': '追加日時（昇順）', 'created-desc': '追加日時（降順）', 'target-asc': '目標日（昇順）', 'target-desc': '目標日（降順）', 'deadline-asc': '締め切り（昇順）', 'deadline-desc': '締め切り（降順）' };
+if (state.sort === 'created') state.sort = 'created-desc';
+if (!Object.hasOwn(sortLabels, state.sort)) state.sort = 'target-asc';
+state.display = Object.fromEntries(['targetDate', 'deadline', 'repeat', 'status'].map(key => [key, readPreference(`tasks-show-${key}`, key === 'targetDate' ? 'true' : 'false') === 'true']));
+// Keep the old shared preferences as defaults until each tab has its own choice.
+const sharedOptions = { sort: state.sort, display: { ...state.display } };
+const viewOptions = new Map();
+function loadViewOptions() {
+  if (state.optionsView === state.filter) return;
+  if (state.optionsView) viewOptions.set(state.optionsView, { sort: state.sort, display: state.display });
+  let options = viewOptions.get(state.filter);
+  if (!options) {
+    let sort = readPreference(`tasks-${state.filter}-sort`, sharedOptions.sort);
+    if (sort === 'created') sort = 'created-desc';
+    if (!Object.hasOwn(sortLabels, sort)) sort = sharedOptions.sort;
+    options = { sort, display: Object.fromEntries(Object.entries(sharedOptions.display).map(([key, value]) => [key, readPreference(`tasks-${state.filter}-show-${key}`, String(value)) === 'true'])) };
+  }
+  state.sort = options.sort;
+  state.display = options.display;
+  state.optionsView = state.filter;
+}
 const grid = document.querySelector('#task-grid');
 const empty = document.querySelector('#empty-state');
 const toast = document.querySelector('#toast');
@@ -31,6 +53,7 @@ const VIEW_COPY = {
   inbox: ['Inbox', '会話から拾った候補を短時間で仕分けします。'],
   open: ['Open', '未着手と作業中のタスクです。'],
   all: ['All', '候補から完了まで、現在の仕事をまとめて表示します。'],
+  today: ['今日の目標', '自主的な目標日が今日のタスクです。'],
   closed: ['Closed', '結果を確認して完了にしたタスクです。'],
 };
 
@@ -106,16 +129,22 @@ function renderTask(task, today) {
   open.append(heading);
   open.setAttribute('aria-label', `${task.title}の詳細を開く`);
   const meta = element('span', 'row-meta');
-  if (state.filter === 'all' || ['failed', 'completing', 'delegating'].includes(taskPhase(task))) {
+  if (state.display.status) {
     meta.append(element('span', `status-badge status-${taskPhase(task)}`, taskStatusLabel(task)));
   }
   if (task.status === 'inbox') meta.append(element('span', 'proposed-category', `仮: ${state.collections.categories.find(c => c.id === task.categoryId)?.name || '未分類'}`));
-  if (task.dueDate) {
-    const overdue = task.status === 'open' && task.dueDate < today;
-    meta.append(element('span', overdue ? 'row-due overdue' : 'row-due', overdue ? `期限切れ ${task.dueDate}` : task.dueDate));
-    if (overdue) open.setAttribute('aria-label', `${task.title}、期限切れ ${task.dueDate}、詳細を開く`);
+  const dates = dateSummary(task);
+  if (state.display.targetDate && task.targetDate) {
+    const goalClass = dates.targetPassed ? 'goal-passed' : dates.targetToday ? 'goal-today' : '';
+    const goalLabel = dates.targetPassed ? '目標日超過' : dates.targetToday ? '今日の目標' : '目標日';
+    const goal = element('span', `row-due ${goalClass}`.trim(), `${goalLabel} ${task.targetDate}`);
+    if (dates.targetPassed) goal.title = '目標日を過ぎています。予定を見直してください';
+    meta.append(goal);
   }
-  if (task.repeat) {
+  const deadlineLabel = task.deadlineStatus === 'confirmed' ? `${dates.deadlineOverdue ? '締切超過' : dates.deadlineToday ? '今日が締切' : dates.deadlineSoon ? '締切間近' : '締切'} ${(task.deadlineAt || '')}` : task.deadlineStatus === 'none' ? '締切なし' : '締切未確認';
+  const deadlineClass = dates.deadlineOverdue ? 'overdue' : dates.deadlineToday ? 'deadline-today' : '';
+  if (state.display.deadline) meta.append(element('span', `row-due ${deadlineClass}`.trim(), deadlineLabel));
+  if (state.display.repeat && task.repeat) {
     const repeat = element('span', 'row-repeat', '↻');
     repeat.setAttribute('aria-label', repeatLabel(task.repeat));
     meta.append(repeat);
@@ -148,7 +177,7 @@ function renderTaskActions(task) {
   if (['delegating', 'running', 'completing'].includes(taskPhase(task))) actions.append(actionButton('状態を同期', 'sync', task));
   if (task.status === 'closed') actions.append(actionButton('Openに戻す', 'open', task));
   if (['idle', 'working', 'running', 'review'].includes(taskPhase(task))) actions.append(actionButton('完了', 'close', task, 'success'));
-  actions.append(actionButton('繰り返し・詳細設定', 'edit', task));
+  actions.append(actionButton('詳細設定', 'edit', task));
   actions.append(actionButton('リンクをコピー', 'copy-link', task));
   if (task.xangiSessionId) {
     const url = conversationUrl(task);
@@ -159,7 +188,6 @@ function renderTaskActions(task) {
     }
   }
 
-  if (!['delegating', 'running', 'completing'].includes(taskPhase(task))) actions.append(actionButton('削除', 'delete', task));
   return actions;
 }
 
@@ -175,9 +203,6 @@ function renderDetail() {
   const metadata = [task.repeat && repeatLabel(task.repeat), task.type && typeLabel(task.type), `更新: ${formatTime(task.updatedAt)}`].filter(Boolean);
   document.querySelector('#detail-properties').textContent = metadata.join(' / ');
 
-  const source = document.querySelector('#detail-source');
-  source.hidden = !task.source?.text;
-  document.querySelector('#detail-source-text').textContent = task.source?.text || '';
   const sourceLink = document.querySelector('#detail-source-link');
   sourceLink.hidden = !task.source?.url;
   sourceLink.href = task.source?.url || '#';
@@ -189,6 +214,17 @@ function renderDetail() {
   const actions = document.querySelector('#detail-actions');
   const focusedAction = actions.contains(document.activeElement) ? document.activeElement.dataset.action : null;
   actions.replaceChildren(renderTaskActions(task));
+  const deleteActions = document.querySelector('#detail-delete-actions');
+  const deleteFocused = deleteActions.contains(document.activeElement);
+  deleteActions.replaceChildren();
+  if (!['delegating', 'running', 'completing'].includes(taskPhase(task))) {
+    const remove = actionButton('', 'delete', task, 'icon-button delete-task');
+    remove.setAttribute('aria-label', 'タスクを削除');
+    remove.title = 'タスクを削除';
+    remove.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+    deleteActions.append(remove);
+  }
+  if (deleteFocused) (deleteActions.querySelector('button:not(:disabled)') || document.querySelector('#close-detail')).focus({ preventScroll: true });
   if (focusedAction) {
     const next = [...actions.querySelectorAll('button')].find(button => button.dataset.action === focusedAction && !button.disabled);
     (next || document.querySelector('#close-detail')).focus({ preventScroll: true });
@@ -199,15 +235,44 @@ function renderQuickEdit(task) {
   const changedTask = quickTaskId !== task.id;
   if (changedTask) {
     quickTaskId = task.id;
+    document.querySelector('#detail-evidence').open = false;
+    document.querySelector('#detail-repeat').open = false;
     quickDirty = new Set();
     document.querySelector('#quick-save-status').textContent = '変更すると保存します';
     document.querySelector('#quick-retry').hidden = true;
   }
-  for (const [name, value] of [['categoryId', task.categoryId || ''], ['title', task.title], ['description', visibleDescription(task.description)], ['notes', task.notes || ''], ['dueDate', task.dueDate || '']]) {
+  for (const [name, value] of [['title', task.title], ['description', visibleDescription(task.description)], ['notes', task.notes || ''], ['targetDate', task.targetDate || ''], ['deadlineAt', (task.deadlineAt || '')], ['deadlineStatus', task.deadlineStatus || 'unknown'], ['deadlineEvidence', task.deadlineEvidence || ''], ['sourceText', task.source?.text || ''], ['sourceUrl', task.source?.url || ''], ['sourceSpeaker', task.source?.speaker || '']]) {
     const input = document.querySelector('#quick-edit').elements.namedItem(name);
     if (changedTask || (!quickDirty.has(name) && document.activeElement !== input)) input.value = value;
   }
-  for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, [form="quick-edit"]')) input.disabled = quickSaving || state.busy.has(task.id);
+  const quickForm = document.querySelector('#quick-edit');
+  const shownRepeat = readRepeat(quickForm);
+  if (shownRepeat) shownRepeat.daysOfWeek.sort();
+  // Keep an equivalent custom selection open while its first interval is being edited.
+  if (changedTask || (!quickDirty.has('repeat') && JSON.stringify(shownRepeat) !== JSON.stringify(task.repeat))) fillRepeat(quickForm, task.repeat);
+  for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, #quick-edit textarea, [form="quick-edit"]')) input.disabled = quickSaving || state.busy.has(task.id);
+  if (!quickSaving && !state.busy.has(task.id)) updateRepeatForm(document.querySelector('#quick-edit'));
+  showDateOrderWarning(quickForm);
+}
+
+function showDateOrderWarning(form) {
+  const warning = dateOrderWarning({ targetDate: form.targetDate.value,
+    deadlineAt: form.deadlineAt.value, deadlineStatus: form.deadlineAt.value ? 'confirmed' : form.deadlineStatus.value });
+  const message = form.querySelector('.date-order-warning');
+  message.textContent = warning;
+  message.hidden = !warning;
+  form.targetDate.setAttribute('aria-invalid', String(Boolean(warning)));
+  return warning;
+}
+
+function readDates(form) {
+  const at = form.deadlineAt.value;
+  const dates = { targetDate: form.targetDate.value,
+    deadlineAt: at, deadlineStatus: at ? 'confirmed' : form.deadlineStatus.value,
+    deadlineEvidence: form.deadlineEvidence.value };
+  const warning = showDateOrderWarning(form);
+  if (warning) throw new Error(warning);
+  return dates;
 }
 
 function visibleDescription(value = '') {
@@ -219,9 +284,13 @@ async function saveQuickEdit() {
   const id = state.selectedTaskId;
   const payload = {};
   for (const name of quickDirty) {
+    if (name === 'repeat') { payload.repeat = readRepeat(document.querySelector('#quick-edit')); continue; }
     const value = document.querySelector('#quick-edit').elements.namedItem(name).value;
     payload[name] = value;
   }
+  if (payload.deadlineAt) payload.deadlineStatus = 'confirmed';
+  if (payload.deadlineStatus && payload.deadlineStatus !== 'confirmed') payload.deadlineAt = '';
+  if (payload.deadlineAt === '' && !payload.deadlineStatus) payload.deadlineStatus = 'unknown';
   if ('title' in payload && !payload.title.trim()) {
     document.querySelector('#quick-save-status').textContent = 'タイトルを入力してください';
     document.querySelector('#quick-retry').hidden = false;
@@ -230,6 +299,13 @@ async function saveQuickEdit() {
   if ('description' in payload) {
     const references = state.detail.task.description.match(/\bconversation=discord:\d+\b/g) || [];
     if (references.length) payload.description = [payload.description, ...references].filter(Boolean).join('\n');
+  }
+  const warning = dateOrderWarning({ ...state.detail.task, ...payload });
+  if (warning) {
+    showDateOrderWarning(document.querySelector('#quick-edit'));
+    document.querySelector('#quick-save-status').textContent = '保存していません';
+    document.querySelector('#quick-retry').hidden = false;
+    return;
   }
   quickSaving = true;
   renderQuickEdit(state.detail.task);
@@ -329,26 +405,26 @@ async function runTaskAction(id, action) {
 
 function render() {
   if (dragging) return;
+  loadViewOptions();
   renderedDate = dateFormatter.format(new Date());
   renderCategories();
   document.querySelector('.filters').hidden = state.filter === 'inbox';
   document.querySelector('.list-options-disclosure').hidden = state.filter === 'inbox';
   document.querySelector('.workspace').classList.toggle('inbox-view', state.filter === 'inbox');
-  document.querySelector('#task-sort').value = state.sort;
+  const [sortField, sortDirection] = state.sort.split('-');
+  document.querySelector('#task-sort').value = sortField;
+  document.querySelector('#task-sort-direction').value = sortDirection;
+  for (const input of document.querySelectorAll('[data-display]')) input.checked = state.display[input.dataset.display];
   const scopedTasks = state.tasks.filter(taskMatchesScope);
-  const visible = state.filter === 'inbox' ? state.tasks.filter(task => task.status === 'inbox') : scopedTasks.filter(task => state.filter === 'all' || task.status === state.filter);
-  if (state.sort.startsWith('due-')) visible.sort((a,b) => {
-    if (!a.dueDate) return b.dueDate ? 1 : 0;
-    if (!b.dueDate) return -1;
-    return a.dueDate.localeCompare(b.dueDate) * (state.sort === 'due-desc' ? -1 : 1);
-  });
+  let visible = state.filter === 'inbox' ? state.tasks.filter(task => task.status === 'inbox') : scopedTasks.filter(task => state.filter === 'today' ? dateSummary(task).targetToday : state.filter === 'all' || task.status === state.filter);
+  visible = sortTasks(visible, state.sort);
   const focused = grid.contains(document.activeElement) ? document.activeElement : null;
   const focusId = focused?.dataset.id;
   const focusAction = focused?.dataset.action;
   const focusIndex = focused ? [...grid.children].indexOf(focused.closest('.task-card')) : -1;
   const nextRows = new Map();
   const rows = visible.map(task => {
-    const signature = JSON.stringify([task, renderedDate, state.filter, state.selectedTaskId === task.id, state.busy.has(task.id), task.status === 'inbox' ? state.collections.categories : null]);
+    const signature = JSON.stringify([task, state.display, renderedDate, dateSummary(task), state.filter, state.selectedTaskId === task.id, state.busy.has(task.id), task.status === 'inbox' ? state.collections.categories : null]);
     const cached = taskRows.get(task.id);
     const row = cached?.signature === signature ? cached.row : renderTask(task, renderedDate);
     nextRows.set(task.id, { signature, row });
@@ -367,7 +443,7 @@ function render() {
     const next = grid.children[Math.min(focusIndex, grid.children.length - 1)]?.querySelector('.task-open');
     (same || next || document.querySelector('#refresh')).focus({ preventScroll: true });
   }
-  document.querySelector('#list-options-summary').textContent = `並べ替え${state.sort !== 'created' ? ' · 期限順' : ''}`;
+  document.querySelector('#list-options-summary').textContent = `表示オプション（${VIEW_COPY[state.filter][0]}） · ${sortLabels[state.sort]}`;
   empty.hidden = visible.length > 0;
   const counts = Object.fromEntries(['open', 'closed'].map(status => [status, scopedTasks.filter(task => task.status === status).length]));
   counts.all = scopedTasks.length;
@@ -421,6 +497,8 @@ const createError = document.querySelector('#create-error');
 createLauncher.addEventListener('click', () => {
   renderCategorySelects();
   document.querySelector('#task-form').categoryId.value = state.category === 'uncategorized' ? '' : state.category;
+  document.querySelector('#task-form .evidence-disclosure').open = false;
+  showDateOrderWarning(document.querySelector('#task-form'));
   createDialog.showModal();
   // Touch devices should open the form without summoning the software keyboard.
   if (!matchMedia('(pointer: coarse)').matches) document.querySelector('#task-title').focus();
@@ -438,7 +516,7 @@ document.querySelector('#task-form').addEventListener('submit', async (event) =>
   try {
     await api('/api/tasks', {
       method: 'POST',
-      body: JSON.stringify({ categoryId: form.categoryId.value, title: form.title.value, description: form.description.value, dueDate: form.dueDate.value, repeat: readRepeat(form) }),
+      body: JSON.stringify({ categoryId: form.categoryId.value, title: form.title.value, description: form.description.value, ...readDates(form), repeat: readRepeat(form) }),
     });
     // Keep the all-category view when adding a task from it.
     if (state.category) state.category = form.categoryId.value || 'uncategorized';
@@ -450,7 +528,7 @@ document.querySelector('#task-form').addEventListener('submit', async (event) =>
     showToast('タスクを追加しました');
   } catch (error) {
     createError.textContent = error.message;
-    createError.hidden = false;
+    createError.hidden = !form.querySelector('.date-order-warning').hidden;
     if (!createDialog.open) showToast(error.message);
   } finally {
     button.disabled = false;
@@ -466,10 +544,14 @@ async function handleTaskAction(event) {
     const form = document.querySelector('#edit-form');
     form.dataset.id = id;
     form.title.value = task.title; form.description.value = task.description;
-    form.dueDate.value = task.dueDate || '';
+    for (const key of ['targetDate', 'deadlineEvidence']) form.elements.namedItem(key).value = task[key] || '';
+    form.deadlineAt.value = (task.deadlineAt || '');
+    form.deadlineStatus.value = task.deadlineStatus || 'unknown';
     fillRepeat(form, task.repeat);
     renderCategorySelects();
     form.categoryId.value = task.categoryId || '';
+    form.querySelector('.evidence-disclosure').open = false;
+    showDateOrderWarning(form);
     document.querySelector('#edit-dialog').showModal();
     return;
   }
@@ -513,6 +595,7 @@ async function handleTaskAction(event) {
 }
 grid.addEventListener('click', handleTaskAction);
 document.querySelector('#detail-actions').addEventListener('click', handleTaskAction);
+document.querySelector('#detail-delete-actions').addEventListener('click', handleTaskAction);
 
 function closeDetail() {
   if (quickSaving || quickDirty.size) {
@@ -615,7 +698,7 @@ document.querySelector('#edit-form').addEventListener('submit', async (event) =>
   try {
     await api(`/api/tasks/${form.dataset.id}`, { method: 'PUT', body: JSON.stringify({
       categoryId: form.categoryId.value, title: form.title.value, description: form.description.value,
-      dueDate: form.dueDate.value, repeat: readRepeat(form),
+      ...readDates(form), repeat: readRepeat(form),
     }) });
     document.querySelector('#edit-dialog').close();
     await loadTasks();
@@ -633,6 +716,7 @@ function repeatLabel(rule) {
 }
 function updateRepeatForm(form) {
   const preset = form.elements.repeatPreset.value;
+  if (form.id === 'quick-edit') document.querySelector('#detail-repeat-value').textContent = preset === 'none' ? 'なし' : repeatLabel(readRepeat(form)).replace('繰り返し: ', '');
   form.querySelector('.repeat-custom').hidden = preset !== 'custom';
   form.elements.repeatInterval.disabled = preset !== 'custom';
   form.querySelector('.repeat-weekdays').hidden = !(preset === 'week' || (preset === 'custom' && form.elements.repeatUnit.value === 'week'));
@@ -651,20 +735,50 @@ function fillRepeat(form, rule) {
   form.querySelectorAll('[name=repeatDay]').forEach(el=>el.checked = (rule?.daysOfWeek || []).includes(Number(el.value)));
   updateRepeatForm(form);
 }
-for (const id of ['task-form', 'edit-form']) {
+for (const id of ['task-form', 'edit-form', 'quick-edit']) {
   const form = document.getElementById(id);
   form.elements.repeatPreset.addEventListener('change', ()=>updateRepeatForm(form));
   form.elements.repeatUnit.addEventListener('change', ()=>updateRepeatForm(form));
   updateRepeatForm(form);
 }
 
-document.querySelector('#task-sort').addEventListener('change', event => {
-  state.sort = event.target.value; writePreference('tasks-sort', state.sort); render();
-});
+for (const input of document.querySelectorAll('[data-display]')) {
+  input.addEventListener('change', () => {
+    state.display[input.dataset.display] = input.checked;
+    writePreference(`tasks-${state.filter}-show-${input.dataset.display}`, String(input.checked));
+    render();
+  });
+}
 
-for (const input of document.querySelectorAll('#quick-edit input, #quick-category, [form="quick-edit"]')) {
+for (const selector of ['#task-sort', '#task-sort-direction']) {
+  document.querySelector(selector).addEventListener('change', () => {
+    state.sort = `${document.querySelector('#task-sort').value}-${document.querySelector('#task-sort-direction').value}`;
+    writePreference(`tasks-${state.filter}-sort`, state.sort);
+    render();
+  });
+}
+
+for (const form of [document.querySelector('#task-form'), document.querySelector('#edit-form'), document.querySelector('#quick-edit')]) {
+  for (const input of [form.targetDate, form.deadlineAt]) {
+    input.addEventListener('input', () => showDateOrderWarning(form));
+    input.addEventListener('change', () => showDateOrderWarning(form));
+  }
+  form.deadlineStatus.addEventListener('change', () => {
+    if (form.deadlineStatus.value !== 'confirmed') {
+      form.deadlineAt.value = '';
+      if (form.id === 'quick-edit') quickDirty.add('deadlineAt');
+    }
+    showDateOrderWarning(form);
+  });
+  form.deadlineAt.addEventListener('change', () => {
+    form.deadlineStatus.value = form.deadlineAt.value ? 'confirmed' : 'unknown';
+    if (form.id === 'quick-edit') quickDirty.add('deadlineStatus');
+  });
+}
+
+for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, #quick-edit textarea, [form="quick-edit"]')) {
   input.addEventListener('input', () => {
-    quickDirty.add(input.name);
+    quickDirty.add(input.closest('.repeat-fields') ? 'repeat' : input.name);
     document.querySelector('#quick-save-status').textContent = '編集中・入力欄を離れると保存します';
   });
   input.addEventListener('keydown', event => {
@@ -675,7 +789,7 @@ for (const input of document.querySelectorAll('#quick-edit input, #quick-categor
       void saveQuickEdit();
     }
   });
-  input.addEventListener('change', () => { quickDirty.add(input.name); void saveQuickEdit(); });
+  input.addEventListener('change', () => { quickDirty.add(input.closest('.repeat-fields') ? 'repeat' : input.name); void saveQuickEdit(); });
 }
 document.querySelector('#quick-edit').addEventListener('submit', event => {
   event.preventDefault();
@@ -986,7 +1100,10 @@ function moveHandle(kind, id, name) {
     event.stopPropagation();
     if (suppressClick && event.detail !== 0) { suppressClick = false; return; }
     if (moving) return;
-    if (kind === 'task') { await openTask(id); if (state.selectedTaskId === id) document.querySelector('#quick-category').focus(); }
+    if (kind === 'task') { await openTask(id); if (state.selectedTaskId === id) {
+      document.querySelector('#detail-actions [data-action="edit"]').click();
+      document.querySelector('#edit-form').categoryId.focus();
+    } }
     else { const category = state.collections.categories.find(c => c.id === id); if (category) { openCollection('categories', category); document.querySelector('#collection-form').folderId.focus(); } }
   });
   return handle;

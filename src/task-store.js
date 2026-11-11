@@ -1,3 +1,4 @@
+import { dateFields, dateOrderWarning } from '../public/task-dates.js';
 import { taskPhase, phaseFields, validateTaskState } from '../public/task-state.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
@@ -5,6 +6,24 @@ import { dirname } from 'node:path';
 import { normalizeRepeat, nextDueDate, todayJst } from './recurrence.js';
 
 const TASK_TYPE_VALUES = new Set(['action', 'waiting', 'hold']);
+
+function editableSource(input, current) {
+  const fields = [['sourceText', 'text', 4000], ['sourceUrl', 'url', 2000], ['sourceSpeaker', 'speaker', 120]];
+  if (!current.source && !fields.some(([key]) => Object.hasOwn(input, key))) return {};
+  const source = { ...current.source };
+  for (const [key, target, limit] of fields) {
+    const value = input[key] === undefined ? source[target] ?? '' : input[key];
+    if (typeof value !== 'string' || value.length > limit) throw new Error(`${key}は${limit}文字以内のテキストで入力してください`);
+    source[target] = value;
+  }
+  if (source.url) {
+    let url;
+    try { url = new URL(source.url); } catch { throw new Error('根拠のURLは有効なhttpまたはhttpsのURLを指定してください'); }
+    if (!/^https?:\/\//i.test(source.url) || !['http:', 'https:'].includes(url.protocol)) throw new Error('根拠のURLはhttpまたはhttpsを指定してください');
+  }
+  // The collector's deduplication key remains stable when evidence is corrected or cleared.
+  return { source };
+}
 
 export function editableFields(input, current = {}) {
   if (Object.hasOwn(input, 'labels')) throw new Error('Unsupported field: labels');
@@ -14,12 +33,14 @@ export function editableFields(input, current = {}) {
   if (description.length > 4000) throw new Error('背景・完了条件は4000文字以内です');
   const notes = input.notes ?? current.notes ?? '';
   if (typeof notes !== 'string' || notes.length > 10000) throw new Error('メモは10000文字以内のテキストで入力してください');
-  const dueDate = input.dueDate ?? current.dueDate ?? '';
-  if (typeof dueDate !== 'string' || (dueDate && (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || !Number.isFinite(Date.parse(dueDate)) || new Date(dueDate).toISOString().slice(0,10) !== dueDate))) throw new Error('期限は有効な日付を指定してください');
+  const dates = dateFields(input, current);
   const categoryId = input.categoryId ?? current.categoryId ?? '';
   if (typeof categoryId !== 'string' || categoryId.length > 100) throw new Error('カテゴリが無効です');
   const repeat = normalizeRepeat(input.repeat === undefined ? current.repeat : input.repeat);
-  return { title, description, notes, categoryId, dueDate: dueDate || (repeat ? todayJst() : ''), repeat };
+  if (repeat && !dates.targetDate) dates.targetDate = todayJst();
+  const dateWarning = dateOrderWarning(dates);
+  if (dateWarning) throw new Error(dateWarning);
+  return { title, description, notes, categoryId, ...dates, ...editableSource(input, current), repeat };
 }
 
 function clone(value) {
@@ -63,7 +84,7 @@ export function validateBackup(input) {
     if (task.xangiSessionId != null && (typeof task.xangiSessionId !== 'string' || task.xangiSessionId.length > 200)) fail();
     if (task.notionPageId && (typeof task.notionPageId !== 'string' || !/^[a-f0-9]{32}$/i.test(task.notionPageId))) fail();
     for (const key of ['conversationMode', 'notionCreating']) if (task[key] !== undefined && typeof task[key] !== 'boolean') fail();
-    Object.assign(task, editableFields(task));
+    Object.assign(task, editableFields(task, task));
     // Restore data, never restart an old agent run or auto-complete a task.
     if (['delegating', 'running', 'completing'].includes(taskPhase(task))) {
       Object.assign(task, phaseFields('review')); task.error = 'Importした実行中タスクです。会話の結果を確認してください';
@@ -100,8 +121,9 @@ export class TaskStore {
       const parsed = JSON.parse(await readFile(this.filePath, 'utf8'));
       if (!Array.isArray(parsed)) throw new Error('Task data must be an array');
       this.tasks = parsed.map(task => {
+        if (Object.hasOwn(task, 'dueDate')) throw new Error('Run scripts/migrate-target-dates.js before starting');
         if (Object.hasOwn(task, 'labels')) throw new Error('Remove labels from stored data before starting');
-        return validateTaskState(task);
+        return { ...validateTaskState(task), ...dateFields(task) };
       });
     } catch (error) {
       if (error?.code !== 'ENOENT') throw error;
@@ -237,7 +259,7 @@ export class TaskStore {
     return task ? clone(task) : null;
   }
 
-  async create({ title, description = '', notes = '', dueDate = '', repeat = null, categoryId = '' }) {
+  async create({ title, description = '', notes = '', targetDate = '', deadlineAt = '', deadlineStatus, deadlineEvidence = '', repeat = null, categoryId = '' }) {
     const normalizedTitle = String(title || '').trim();
     if (!normalizedTitle) throw new Error('Title is required');
     if (normalizedTitle.length > 160) throw new Error('Title must be 160 characters or fewer');
@@ -246,7 +268,7 @@ export class TaskStore {
       id: randomUUID(),
       title: normalizedTitle,
       description: String(description || '').trim().slice(0, 4000),
-      ...editableFields({ title, description, notes, dueDate, repeat, categoryId }),
+      ...editableFields({ title, description, notes, targetDate, deadlineAt, deadlineStatus, deadlineEvidence, repeat, categoryId }),
       ...phaseFields('idle'),
       xangiSessionId: null,
       result: '',
@@ -297,6 +319,7 @@ export class TaskStore {
         url: normalizedSourceUrl,
         speaker: String(sourceSpeaker || '').trim().slice(0, 120),
       },
+      ...dateFields({}),
       dueRaw: String(dueRaw || '').trim().slice(0, 160),
       xangiSessionId: null,
       result: '',
@@ -323,11 +346,12 @@ export class TaskStore {
       const now = new Date().toISOString();
       let nextTask = null;
       if (taskPhase(task) !== 'closed' && task.completionOriginPhase !== 'closed' && !task.nextTaskId && task.repeat) {
-        const anchor = task.repeatAnchor || task.dueDate || today;
+        const anchor = task.repeatAnchor || task.targetDate || today;
         nextTask = {
           id: randomUUID(), title: task.title, description: task.description,
           categoryId: task.categoryId || '', repeat: clone(task.repeat), repeatAnchor: anchor,
-          dueDate: nextDueDate(task.repeat, anchor, task.dueDate || today, today),
+          ...dateFields({ targetDate: nextDueDate(task.repeat, anchor, task.targetDate || today, today) }),
+          // External deadlines apply to an occurrence and need confirmation again.
           seriesId: task.seriesId || task.id, previousTaskId: task.id,
           ...phaseFields('idle'), xangiSessionId: null, result: '', error: '',
           createdAt: now, updatedAt: now,
@@ -401,7 +425,7 @@ export class TaskStore {
       if (expectedPhases && !expectedPhases.includes(taskPhase(task))) { updated = clone(task); return; }
       if ('categoryId' in updates) this.validateCategory(updates.categoryId);
       validateTaskState({ ...task, ...updates });
-      if (('dueDate' in updates && updates.dueDate !== task.dueDate) || ('repeat' in updates && JSON.stringify(updates.repeat) !== JSON.stringify(task.repeat))) delete task.repeatAnchor;
+      if (('targetDate' in updates && updates.targetDate !== task.targetDate) || ('repeat' in updates && JSON.stringify(updates.repeat) !== JSON.stringify(task.repeat))) delete task.repeatAnchor;
       Object.assign(task, updates, { updatedAt: new Date().toISOString() });
       updated = clone(task);
     });

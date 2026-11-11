@@ -1,3 +1,4 @@
+import { dateSummary } from '../public/task-dates.js';
 import { taskPhase, phaseFields } from '../public/task-state.js';
 import { renderExtensionHtml } from './extension.js';
 import { MAX_FILE_BYTES, pageId } from './notion.js';
@@ -190,13 +191,24 @@ export function createTaskServer({ store, connector, publicDir, pollIntervalMs =
       }
 
       if (req.method === 'GET' && url.pathname === '/api/tasks') {
-        json(res, 200, { tasks: store.list() });
+        const tasks = store.list();
+        const now = new Date();
+        json(res, 200, {
+          tasks,
+          datePolicy: {
+            targetDate: '自主的な目標日',
+            deadlineAt: '確認済みの締め切り（YYYY-MM-DD形式の日付）',
+            deadlineStatus: 'unknown=未確認 / none=なし / confirmed=確認済み', deadlineSoonDays: 7,
+          },
+          dateSummaries: Object.fromEntries(tasks.map(task => [task.id, dateSummary(task, now)])),
+        });
         return;
       }
 
       if (req.method === 'POST' && url.pathname === '/api/tasks') {
         const input = await readJson(req);
         if (Object.hasOwn(input, 'labels')) throw new Error('Unsupported field: labels');
+        if (Object.hasOwn(input, 'dueDate')) throw new Error('旧日付ではなくtargetDateを指定してください');
         const task = await store.create(input);
         json(res, 201, { task });
         return;

@@ -49,13 +49,24 @@
             <div class="filter-toolbar">
             <nav class="filters" aria-label="タスク表示">
               <button class="nav-item active" data-filter="open">Open <span id="count-open">0</span></button>
+              <button class="nav-item" data-filter="today">今日の目標</button>
               <button class="nav-item" data-filter="closed">Closed <span id="count-closed">0</span></button>
               <button class="nav-item" data-filter="all">All <span id="count-all">0</span></button>
             </nav>
             <button class="button" id="refresh" aria-label="タスクを更新">更新</button>
             </div>
-            <details class="list-options-disclosure"><summary id="list-options-summary">並べ替え</summary><div class="list-options">
-              <label>並べ替え<select id="task-sort"><option value="created">追加順（新しい順）</option><option value="due-asc">期限が近い順</option><option value="due-desc">期限が遠い順</option></select></label>
+            <details class="list-options-disclosure"><summary id="list-options-summary">表示オプション</summary><div class="list-options">
+              <div class="list-sort-controls">
+                <label>並べ替え<select id="task-sort"><option value="target">目標日</option><option value="deadline">締め切り</option><option value="created">追加日時</option></select></label>
+                <label>順序<select id="task-sort-direction"><option value="asc">昇順</option><option value="desc">降順</option></select></label>
+              </div>
+              <fieldset class="list-display-options"><legend>一覧に表示する項目</legend>
+                <label><input type="checkbox" data-display="targetDate" checked />目標日</label>
+                <label><input type="checkbox" data-display="deadline" />締め切り・確認状態</label>
+                <label><input type="checkbox" data-display="repeat" />繰り返し</label>
+                <label><input type="checkbox" data-display="status" />進捗・状態</label>
+              </fieldset>
+              <p>昇順は古い日付から、降順は新しい日付から。日付が未設定のタスクは末尾です。表示する項目と並び順はタブごとに、このブラウザに保存します。</p>
             </div>
             </details>
             <div class="task-grid" id="task-grid"></div>
@@ -71,17 +82,40 @@
         <header class="detail-header"><div class="detail-title-field"><label for="detail-title">タイトル</label><input id="detail-title" name="title" form="quick-edit" maxlength="160" required aria-describedby="quick-save-status" /></div><button class="icon-button" id="close-detail" aria-label="閉じる">×</button></header>
         <div class="detail-meta"><span class="status-badge" id="detail-status">未実施</span><span class="detail-session" id="detail-session"></span></div>
         <form id="quick-edit" class="quick-edit" aria-label="タスクをすぐ編集">
-          <label>期限<input id="quick-due" name="dueDate" type="date" /></label>
-          <label>カテゴリ<select id="quick-category" name="categoryId" class="category-select"><option value="">未分類</option></select></label>
-          <p id="quick-save-status" role="status">変更すると保存します</p>
+          <label class="date-row"><span>目標日</span><input name="targetDate" type="date" aria-describedby="quick-target-warning" /></label>
+          <p id="quick-target-warning" class="date-order-warning" role="alert" hidden></p>
+          <details id="detail-repeat" class="repeat-disclosure"><summary>繰り返し（目標日）<span id="detail-repeat-value">なし</span></summary><fieldset class="repeat-fields"><legend>繰り返し（目標日）</legend>
+          <label>頻度<select name="repeatPreset"><option value="none">繰り返さない</option><option value="day">毎日</option><option value="weekdays">平日</option><option value="week">毎週</option><option value="month">毎月</option><option value="year">毎年</option><option value="custom">カスタム</option></select></label>
+          <div class="repeat-custom" hidden>
+            <label>間隔<input name="repeatInterval" type="number" min="1" max="999" value="1" /></label>
+            <label>単位<select name="repeatUnit"><option value="day">日ごと</option><option value="week">週ごと</option><option value="month">か月ごと</option><option value="year">年ごと</option></select></label>
+          </div>
+          <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら目標日の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
+          <small>目標日を基準に、完了すると次回分を追加します。締め切りは引き継ぎません。目標日未指定なら今日が初回です。</small>
+        </fieldset></details>
+          <label class="date-row"><span>締め切り</span><input name="deadlineAt" type="date" /></label>
+          <p id="quick-save-status" role="status" aria-live="polite">変更すると保存します</p>
           <button id="quick-retry" class="button" type="submit" hidden>保存を再試行</button>
         </form>
+        <details id="detail-evidence" class="evidence-disclosure detail-evidence">
+          <summary>確認状態・根拠</summary>
+          <div class="evidence-fields">
+            <label>締切の確認状態<select name="deadlineStatus" form="quick-edit"><option value="unknown">未確認</option><option value="none">なし（確認済み）</option><option value="confirmed">日付を確認済み</option></select></label>
+            <label>締切の根拠<textarea name="deadlineEvidence" form="quick-edit" rows="3" maxlength="4000" placeholder="メール・SlackのURLや引用"></textarea></label>
+        <section class="source-evidence" id="detail-source" aria-label="会話の根拠">
+          <label for="detail-source-text">会話の根拠<textarea id="detail-source-text" name="sourceText" form="quick-edit" rows="4" maxlength="4000" placeholder="引用や根拠を入力・修正" aria-describedby="quick-save-status"></textarea></label>
+          <label for="detail-source-url">元のリンク<input id="detail-source-url" name="sourceUrl" form="quick-edit" type="url" maxlength="2000" aria-describedby="quick-save-status" /></label>
+          <label for="detail-source-speaker">発言者<input id="detail-source-speaker" name="sourceSpeaker" form="quick-edit" maxlength="120" aria-describedby="quick-save-status" /></label>
+          <a id="detail-source-link" target="_blank" rel="noreferrer" hidden>元のメッセージを開く</a>
+        </section>
+          </div>
+        </details>
         <p class="detail-properties" id="detail-properties"></p>
-        <label class="detail-description" for="detail-description">背景・完了条件<textarea id="detail-description" name="description" form="quick-edit" rows="4" maxlength="4000" placeholder="背景や完了条件を入力" aria-describedby="quick-save-status"></textarea></label>
+        <label class="detail-description" for="detail-description">タスクの内容<textarea id="detail-description" name="description" form="quick-edit" rows="4" maxlength="4000" placeholder="やることや完了の目安を入力" aria-describedby="quick-save-status"></textarea></label>
         <label class="detail-notes" for="detail-notes">メモ<textarea id="detail-notes" name="notes" form="quick-edit" rows="5" maxlength="10000" placeholder="思いついたこと、途中経過、あとで確認したいことなど" aria-describedby="notes-hint quick-save-status"></textarea><small id="notes-hint">タスクの補足や途中経過を残せます。</small></label>
-        <section class="source-evidence" id="detail-source" hidden><p class="eyebrow">会話の根拠</p><blockquote id="detail-source-text"></blockquote><a id="detail-source-link" target="_blank" rel="noreferrer">元のメッセージを開く</a></section>
+
         <p class="detail-error" id="detail-error" hidden></p>
-        <footer class="detail-footer" id="detail-actions"></footer>
+        <div class="detail-footer" id="detail-actions"></div>
         <section id="notion-panel" class="notion-panel" aria-label="Notionに保存">
           <strong>Notion</strong>
           <a id="notion-link" target="_blank" rel="noreferrer" hidden>タスクのNotionページを開く ↗</a>
@@ -103,6 +137,7 @@
           </div>
           <p id="notion-status" role="status"></p>
         </section>
+        <footer class="detail-bottom" id="detail-delete-actions" aria-label="タスクの削除"></footer>
       </div>
     </dialog>
         </div>
@@ -117,18 +152,25 @@
       </div>
       <form id="task-form">
         <label>タイトル<input id="task-title" name="title" maxlength="160" placeholder="例：企画書のたたき台を作る" autocomplete="off" required /></label>
-        <label>背景・完了条件<textarea id="task-description" name="description" rows="4" maxlength="4000" placeholder="xangiに渡したい背景や、どこまでできれば完了か"></textarea></label>
+        <label>タスクの内容<textarea id="task-description" name="description" rows="4" maxlength="4000" placeholder="xangiに渡したい背景や、どこまでできれば完了か"></textarea></label>
         <label>カテゴリ<select name="categoryId" class="category-select"><option value="">未分類</option></select></label>
-        <label>期限<input name="dueDate" type="date" /></label>
-        <fieldset class="repeat-fields"><legend>繰り返し</legend>
+        <label>目標日<input name="targetDate" type="date" aria-describedby="create-target-warning" /></label>
+          <p id="create-target-warning" class="date-order-warning" role="alert" hidden></p>
+        <fieldset class="repeat-fields"><legend>繰り返し（目標日）</legend>
           <label>頻度<select name="repeatPreset"><option value="none">繰り返さない</option><option value="day">毎日</option><option value="weekdays">平日</option><option value="week">毎週</option><option value="month">毎月</option><option value="year">毎年</option><option value="custom">カスタム</option></select></label>
           <div class="repeat-custom" hidden>
             <label>間隔<input name="repeatInterval" type="number" min="1" max="999" value="1" /></label>
             <label>単位<select name="repeatUnit"><option value="day">日ごと</option><option value="week">週ごと</option><option value="month">か月ごと</option><option value="year">年ごと</option></select></label>
           </div>
-          <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら期限の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
-          <small>完了すると次回分を未実施に追加します。期限未指定なら今日が初回です。</small>
+          <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら目標日の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
+          <small>目標日を基準に、完了すると次回分を追加します。締め切りは引き継ぎません。目標日未指定なら今日が初回です。</small>
         </fieldset>
+        <label>締め切り<input name="deadlineAt" type="date" /></label>
+        <details class="evidence-disclosure"><summary>締切の確認状態・根拠</summary><div class="evidence-fields">
+          <label>締切の確認状態<select name="deadlineStatus"><option value="unknown">未確認</option><option value="none">なし（確認済み）</option><option value="confirmed">日付を確認済み</option></select></label>
+          <label>締切の根拠<textarea name="deadlineEvidence" rows="3" maxlength="4000" placeholder="メール・SlackのURLや引用"></textarea></label>
+        </div></details>
+
         <p id="create-error" role="alert" hidden></p>
         <div class="composer-actions">
           <p>作成しただけではxangiは動きません。</p>
@@ -157,7 +199,7 @@
         <p id="delegate-agent-hint" role="status"></p>
         <button type="button" class="button" id="save-default-agent">この依頼先を既定にする</button>
         <label>追加の指示（任意）<textarea name="instructions" rows="4" maxlength="4000" placeholder="今回お願いしたいこと、実行しないでほしいこと"></textarea></label>
-        <p>開いている会話には追加で依頼し、閉じた後は新しい会話を作ります。タイトル・背景と完了条件・期限・追加指示を送ります。メモは自動では送りません。</p>
+        <p>開いている会話には追加で依頼し、閉じた後は新しい会話を作ります。タイトル・タスクの内容・目標日・締め切りと確認状態・根拠・追加指示を送ります。メモは自動では送りません。</p>
         <p id="delegate-error" role="alert" hidden></p>
         <footer class="detail-footer"><button type="submit" class="button primary">依頼を送信</button></footer>
       </form>
@@ -166,18 +208,25 @@
       <form id="edit-form" class="detail-shell">
         <h2 id="edit-heading">タスクを編集</h2>
         <label>タイトル<input name="title" maxlength="160" required /></label>
-        <label>背景・完了条件<textarea name="description" maxlength="4000"></textarea></label>
+        <label>タスクの内容<textarea name="description" maxlength="4000"></textarea></label>
         <label>カテゴリ<select name="categoryId" class="category-select"><option value="">未分類</option></select></label>
-        <label>期限<input name="dueDate" type="date" /></label>
-              <fieldset class="repeat-fields"><legend>繰り返し</legend>
+        <label>目標日<input name="targetDate" type="date" aria-describedby="edit-target-warning" /></label>
+          <p id="edit-target-warning" class="date-order-warning" role="alert" hidden></p>
+        <fieldset class="repeat-fields"><legend>繰り返し（目標日）</legend>
                 <label>頻度<select name="repeatPreset"><option value="none">繰り返さない</option><option value="day">毎日</option><option value="weekdays">平日</option><option value="week">毎週</option><option value="month">毎月</option><option value="year">毎年</option><option value="custom">カスタム</option></select></label>
                 <div class="repeat-custom" hidden>
                   <label>間隔<input name="repeatInterval" type="number" min="1" max="999" value="1" /></label>
                   <label>単位<select name="repeatUnit"><option value="day">日ごと</option><option value="week">週ごと</option><option value="month">か月ごと</option><option value="year">年ごと</option></select></label>
                 </div>
-                <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら期限の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
-                <small>完了すると次回分を未実施に追加します。期限未指定なら今日が初回です。</small>
+                <fieldset class="repeat-weekdays" hidden><legend>曜日（未選択なら目標日の曜日）</legend><label><input type="checkbox" name="repeatDay" value="1" />月</label><label><input type="checkbox" name="repeatDay" value="2" />火</label><label><input type="checkbox" name="repeatDay" value="3" />水</label><label><input type="checkbox" name="repeatDay" value="4" />木</label><label><input type="checkbox" name="repeatDay" value="5" />金</label><label><input type="checkbox" name="repeatDay" value="6" />土</label><label><input type="checkbox" name="repeatDay" value="0" />日</label></fieldset>
+                <small>目標日を基準に、完了すると次回分を追加します。締め切りは引き継ぎません。目標日未指定なら今日が初回です。</small>
               </fieldset>
+        <label>締め切り<input name="deadlineAt" type="date" /></label>
+        <details class="evidence-disclosure"><summary>締切の確認状態・根拠</summary><div class="evidence-fields">
+          <label>締切の確認状態<select name="deadlineStatus"><option value="unknown">未確認</option><option value="none">なし（確認済み）</option><option value="confirmed">日付を確認済み</option></select></label>
+          <label>締切の根拠<textarea name="deadlineEvidence" rows="3" maxlength="4000" placeholder="メール・SlackのURLや引用"></textarea></label>
+        </div></details>
+
         <p>変更はタスクに保存されます。</p>
         <div><button type="button" class="button" id="cancel-edit">キャンセル</button><button type="submit" class="button primary">保存</button></div>
       </form>
