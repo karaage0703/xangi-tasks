@@ -121,8 +121,7 @@ export class TaskStore {
       const parsed = JSON.parse(await readFile(this.filePath, 'utf8'));
       if (!Array.isArray(parsed)) throw new Error('Task data must be an array');
       this.tasks = parsed.map(task => {
-        if (Object.hasOwn(task, 'dueDate')) throw new Error('Run scripts/migrate-target-dates.js before starting');
-        if (Object.hasOwn(task, 'labels')) throw new Error('Remove labels from stored data before starting');
+        if (Object.hasOwn(task, 'labels')) throw new Error('Unsupported field: labels');
         return { ...validateTaskState(task), ...dateFields(task) };
       });
     } catch (error) {

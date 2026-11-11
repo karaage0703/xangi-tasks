@@ -36,7 +36,7 @@ IDがない場合は`GET /api/tasks`の`tasks`からタイトル・状態・目�
 
 編集できる主な項目は`title`、`description`、`notes`、`targetDate`（自主的な目標日、YYYY-MM-DDまたは空文字）、`deadlineAt`（締切日、YYYY-MM-DDまたは空文字。日時形式は不可）、`deadlineStatus`（unknown / none / confirmed）、`deadlineEvidence`（根拠）、`categoryId`。指定しない項目は保持される。日付の例は本人の指定日に置き換える。メモを追記する時は直前に取得した既存メモと統合する。
 
-朝の整理・通知・一覧要約でも両日付と意味を確認する。目標日だけで「提出期限」「締切超過」と言わない。旧日付は移行時に目標日へ変換する。実際の締切へは変換しない。「今日の目標」は`targetDate`が日本時間の今日のOpen。「締切間近」は目標日とは独立に7日以内の確認済み`deadlineAt`と超過を抽出する。`GET /api/tasks`の`datePolicy`とID別`dateSummaries`も使える。締切は`unknown`（未確認）と`none`（なしと確認済み）を区別し、確認済みの日付は`confirmed`。根拠URL・引用は`deadlineEvidence`へ。目標日変更時は締切項目を送らず保持する。締切は本人や提出先の根拠から確認し、自主日付から推定しない。
+朝の整理・通知・一覧要約でも両日付と意味を確認する。目標日だけで「提出期限」「締切超過」と言わない。「今日の目標」は`targetDate`が日本時間の今日のOpen。「締切間近」は目標日とは独立に7日以内の確認済み`deadlineAt`と超過を抽出する。`GET /api/tasks`の`datePolicy`とID別`dateSummaries`も使える。締切は`unknown`（未確認）と`none`（なしと確認済み）を区別し、確認済みの日付は`confirmed`。根拠URL・引用は`deadlineEvidence`へ。目標日変更時は締切項目を送らず保持する。締切は本人や提出先の根拠から確認し、自主日付から推定しない。
 
 本人の「追加して」は`POST /api/tasks`で未着手にする。本人が承認していない自動抽出は`POST /api/inbox`へ`title`、`sourceText`等を送り、候補として扱う。
 

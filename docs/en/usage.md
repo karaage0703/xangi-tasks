@@ -178,8 +178,6 @@ POST /api/inbox accepts an optional sourceKey of up to 300 characters. Retrying 
 
 Open Inbox from the top of the category menu. Candidates show a proposed category that can be changed in details without accepting them. Use the acceptance button to move an item to Open while keeping its category.
 
-Labels are removed. Old exports containing labels are rejected. For an existing deployment, stop the extension and run `node scripts/remove-task-labels.js <tasks.json> <new-file.json>` before replacing the data file. Keep the original as a backup; all other task fields are preserved.
-
 ## Notion linking CLI
 
 A Notion URL in Notes does not register a task's linked Notion page. The bundled CLI links an existing page and verifies the saved association. It uses uv and the Python standard library; it is not a subcommand of the xangi executable.
@@ -203,9 +201,3 @@ Run CLI regression tests with `npm run test:notion-cli` (requires uv).
 On desktop (901px and wider), drag the boundaries between categories, list and details. The list fills the remaining space. Focus a separator with Tab and use arrow keys (Shift for larger steps), Home/End, or double-click to reset. Widths persist per browser and are constrained on smaller windows to keep the list usable. Mobile retains its category drawer and full-screen details.
 
 Task list and detail API responses include notes in `notes`, so AI can retrieve them when asked to check a task. Notes are not automatically included in the “Delegate to xangi” message.
-
-## Date migration
-
-Move old dates into goals once and remove the old field. Never infer external deadlines. The application only handles goals and actual deadlines; reading, importing or editing old date fields is rejected.
-
-Stop the extension and back up task data, collections and settings. Run `node scripts/migrate-target-dates.js <tasks.json> <new-tasks.json>`, replace the configured task file with the converted output, then start the extension. The command also accepts Export files. Existing nonempty goals take precedence. Source files are unchanged and existing output files are never overwritten.

@@ -6,7 +6,7 @@ export function validDate(value) {
 }
 
 export function dateFields(input, current = {}) {
-  if (Object.hasOwn(input, 'dueDate')) throw new Error('旧日付データは目標日へ変換してください');
+  if (Object.hasOwn(input, 'dueDate')) throw new Error('Unsupported field: dueDate');
   const targetDate = input.targetDate === undefined ? current.targetDate ?? '' : input.targetDate;
   if (targetDate !== '' && !validDate(targetDate)) throw new Error('目標日は有効な日付を指定してください');
   let day = input.deadlineAt === undefined ? current.deadlineAt ?? '' : input.deadlineAt;

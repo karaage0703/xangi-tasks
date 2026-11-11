@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { dateFields, dateSummary, dateContext, sortTasks } from '../public/task-dates.js';
 import { TaskStore, editableFields, validateBackup } from '../src/task-store.js';
-import { migrateTargetDates } from '../scripts/migrate-target-dates.js';
 import { XangiConnector } from '../src/xangi-connector.js';
 
 const deadline = { deadlineStatus: 'confirmed', deadlineAt: '2026-11-16', deadlineEvidence: 'Submission email' };
@@ -39,31 +38,6 @@ test('dates validate calendar days, state and evidence; partial edits preserve d
   assert.equal(dateFields({ deadlineStatus: 'none' }, task).deadlineAt, '');
   assert.notEqual(dateFields({ deadlineStatus: 'none' }).deadlineStatus, dateFields({}).deadlineStatus);
   for (const bad of [ { targetDate: null }, { targetDate: '2026-02-30' }, { dueDate: 'bad' }, { deadlineAt: '2026-11-16T17:00' }, { deadlineAt: '2026-02-30T17:00+09:00' }, { deadlineAt: '2026-11-16T24:00+09:00' }, { deadlineStatus: 'confirmed' }, { ...deadline, deadlineStatus: 'none' }, { deadlineEvidence: 1 }, { deadlineStatus: 'maybe' } ]) assert.throws(() => dateFields(bad));
-});
-
-test('one-time conversion moves old dates into goals and removes obsolete fields without inventing deadlines', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'task-dates-')); t.after(() => rm(dir, { recursive: true, force: true }));
-  const file = join(dir, 'tasks.json');
-  const store = new TaskStore(file); await store.init();
-  const task = await store.create({ title: 'New', targetDate: '2026-11-09', ...deadline });
-  const old = { ...task, targetDate: '', dueDate: '2026-11-08', deadlineAt: '', deadlineStatus: 'unknown' };
-  await writeFile(file, JSON.stringify([old]));
-  await assert.rejects(new TaskStore(file).init(), /migrate-target-dates/);
-  const converted = migrateTargetDates([old]);
-  assert.equal(converted[0].targetDate, '2026-11-08');
-  assert.equal(converted[0].deadlineStatus, 'unknown');
-  assert.ok(!Object.hasOwn(converted[0], 'dueDate'));
-  assert.equal(old.dueDate, '2026-11-08');
-  assert.equal(migrateTargetDates([{ ...old, targetDate: '2026-11-10' }])[0].targetDate, '2026-11-10');
-  assert.throws(() => migrateTargetDates([{ dueDate: '2026-02-30' }]));
-  await writeFile(file, JSON.stringify(converted));
-  const reloaded = new TaskStore(file); await reloaded.init();
-  assert.equal(reloaded.get(task.id).targetDate, '2026-11-08');
-  const backup = await reloaded.backupSnapshot();
-  assert.deepEqual(validateBackup(backup).tasks, converted);
-  assert.equal(migrateTargetDates({ ...backup, tasks: [old] }).tasks[0].targetDate, '2026-11-08');
-  backup.tasks[0].deadlineAt = 'bad'; backup.tasks[0].deadlineStatus = 'confirmed';
-  assert.throws(() => validateBackup(backup));
 });
 
 test('new recurrence advances goals, does not invent external deadlines, and goal edits reset anchors', async t => {

@@ -7,7 +7,7 @@ out=Path(os.environ.get('SCREENSHOT_DIR','/tmp/tasks-quick-preview'));out.mkdir(
 with tempfile.TemporaryDirectory() as temp:
  server=subprocess.Popen(['node','--input-type=module','-e', '''
 import {TaskStore} from './src/task-store.js'; import {createTaskServer} from './src/app.js';
-const store=new TaskStore(process.env.TEST_DATA); await store.init(); await store.create({title:'週末の予定を整理する',description:'必要なことを書き出す',dueDate:'2030-01-31'});
+const store=new TaskStore(process.env.TEST_DATA); await store.init(); await store.create({title:'週末の予定を整理する',description:'必要なことを書き出す',targetDate:'2030-01-31'});
 const app=createTaskServer({store,connector:{health:async()=>({version:'test'})},publicDir:process.cwd()+'/public'});
 app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
 '''],cwd=root,env={**os.environ,'TEST_DATA':temp+'/tasks.json'},stdout=subprocess.PIPE,text=True)

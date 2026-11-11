@@ -108,6 +108,6 @@ Inboxはカテゴリ一覧先頭の独立した受信箱です。カテゴリの
 
 ## 日付の契約
 
-`targetDate`は自主的な目標日。`deadlineStatus`はunknown / none / confirmedで、confirmedだけがYYYY-MM-DD形式の`deadlineAt`を持ちます。根拠は`deadlineEvidence`。保存・Import時は同一のバリデーションを使います。Export version 2は維持し、旧日付のあるデータは移行スクリプトで変換してから利用します。`GET /api/tasks`は全件と`datePolicy`・ID別`dateSummaries`（今日の目標・目標日超過・7日以内の締切・締切超過）を返します。締切・目標日とも日本の暦日で判定します。締切は画面・API・保存・Export/Importですべて日付のみを扱います。日時形式は受け付けず、自動変換もしません。UIと委任は共有の`public/task-dates.js`を使用し、拡張HTMLにも埋め込みます。
+`targetDate`は自主的な目標日。`deadlineStatus`はunknown / none / confirmedで、confirmedだけがYYYY-MM-DD形式の`deadlineAt`を持ちます。根拠は`deadlineEvidence`。保存・Import時は同一のバリデーションを使います。`GET /api/tasks`は全件と`datePolicy`・ID別`dateSummaries`（今日の目標・目標日超過・7日以内の締切・締切超過）を返します。締切・目標日とも日本の暦日で判定します。締切は画面・API・保存・Export/Importですべて日付のみを扱います。日時形式は受け付けず、自動変換もしません。UIと委任は共有の`public/task-dates.js`を使用し、拡張HTMLにも埋め込みます。
 
 `PUT /api/tasks/:id`は`sourceText`（4000文字）、`sourceUrl`（http/https、2000文字）、`sourceSpeaker`（120文字）で会話の根拠を編集します。省略は保持、空文字は消去。保存先は既存の`source.text/url/speaker`で、`source.key`は編集対象外です。締切の根拠は`deadlineEvidence`で独立に編集します。

@@ -29,11 +29,11 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
       page.locator('#open-create').click()
       form=page.locator('#task-form')
       form.locator('[name=title]').fill(marker+'-繰り返し')
-      form.locator('[name=dueDate]').fill('2030-01-31')
+      form.locator('[name=targetDate]').fill('2030-01-31')
       form.locator('[name=repeatPreset]').select_option('month')
       form.get_by_role('button',name='追加',exact=True).click()
       for suffix,due in [('早い','2029-01-01'),('なし','')]:
-       res=page.request.post(api+'/api/tasks',data={'title':marker+'-'+suffix,'dueDate':due})
+       res=page.request.post(api+'/api/tasks',data={'title':marker+'-'+suffix,'targetDate':due})
        assert res.ok
       page.locator('#refresh').click()
       page.locator('[data-filter=open]').click()
