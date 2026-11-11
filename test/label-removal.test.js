@@ -10,7 +10,7 @@ test('one-time removal preserves all other data and labels never reappear in per
  const file=join(await mkdtemp(join(tmpdir(),'remove-labels-')),'tasks.json');
  const store=new TaskStore(file);await store.init();
  const category=await store.saveCollection('categories',{name:'Work'});
- const task=await store.create({title:'Keep',categoryId:category.id,notes:'Keep notes',dueDate:'2030-01-31',repeat:{unit:'month',interval:1}});
+ const task=await store.create({title:'Keep',categoryId:category.id,notes:'Keep notes',targetDate:'2030-01-31',repeat:{unit:'month',interval:1}});
  const old=[{...task,labels:['remove']}];
  await writeFile(file,JSON.stringify(old));
  await assert.rejects(new TaskStore(file).init(),/Remove labels/);

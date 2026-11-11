@@ -38,6 +38,8 @@ test('managed process serves data itself, authenticates UI, and persists across 
   for (const path of ['/', '/api/tasks', '/api/export', '/api/auth/login']) assert.equal((await fetch(a.ready.baseUrl + path)).status, 401);
   const html = await (await a.request('/')).text();
   assert.match(html, /<script type="module">/); assert.doesNotMatch(html, /src="app.js"|managed-test-secret/);
+  assert.doesNotMatch(html, /import\s+\{[^}]+\}\s+from\s+['"]\.\//, 'embedded HTML must inline all local modules');
+  assert.match(html, /function dateOrderWarning\(/);
   const task = (await (await a.request('/api/tasks', 'POST', { title: 'Persisted task' })).json()).task;
   const exited = once(a.child, 'exit'); a.child.stdin.end(); assert.deepEqual(await exited, [0, null]);
   assert.equal(JSON.parse(await readFile(join(dir, 'tasks.json'), 'utf8'))[0].id, task.id);

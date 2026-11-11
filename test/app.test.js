@@ -193,14 +193,14 @@ test('edits metadata, validates dates, preserves lifecycle and synchronizes sess
   const task = await t.store.create({title:'Before'});
   await t.store.update(task.id,{...phaseFields('review'),xangiSessionId:'linked',result:'keep'});
   const path=`/api/tasks/${task.id}`;
-  const edited=await jsonRequest(t.baseUrl,path,{method:'PUT',body:JSON.stringify({title:'After',description:'New',dueDate:'2026-10-31',...phaseFields('closed')})});
+  const edited=await jsonRequest(t.baseUrl,path,{method:'PUT',body:JSON.stringify({title:'After',description:'New',targetDate:'2026-10-31',...phaseFields('closed')})});
   assert.equal(edited.response.status,200);
   assert.equal(taskPhase(edited.body.task),'review');
   assert.equal(edited.body.task.result,'keep');
   assert.deepEqual(renamed,[{id:'linked',title:'After'}]);
   const reload=new TaskStore(t.store.filePath);await reload.init();
-  assert.equal(reload.get(task.id).dueDate,'2026-10-31');
-  for (const fields of [{title:''},{dueDate:'2026-02-30'},{labels:'仕事'}]) {
+  assert.equal(reload.get(task.id).targetDate,'2026-10-31');
+  for (const fields of [{title:''},{targetDate:'2026-02-30'},{labels:'仕事'}]) {
     assert.equal((await jsonRequest(t.baseUrl,path,{method:'PUT',body:JSON.stringify(fields)})).response.status,400);
   }
   t.connector.renameSession=async()=>{throw new Error('offline')};
@@ -279,7 +279,7 @@ test('accepts completion during a reply, persists it and closes only after idle'
     if (busy) throw Object.assign(new Error('Session is busy'), { status: 409 });
   } });
   context.after(app.close);
-  const task = await app.store.create({ title: 'Finish after reply', repeat: { unit: 'day', interval: 1 }, dueDate: '2026-10-09' });
+  const task = await app.store.create({ title: 'Finish after reply', repeat: { unit: 'day', interval: 1 }, targetDate: '2026-10-09' });
   await app.store.update(task.id, { ...phaseFields('running'), xangiSessionId: 'active-session' });
   const path = `/api/tasks/${task.id}/close`;
   const accepted = await jsonRequest(app.baseUrl, path, { method: 'POST' });
@@ -381,7 +381,7 @@ test('a late follow-up error cannot undo completion', async (context) => {
 
 test('done can be reset with one request, preserving history and avoiding duplicate recurrence', async context => {
   const app = await startTestApp(); context.after(app.close);
-  const task = await app.store.create({ title: 'Repeat', dueDate: '2030-01-31', repeat: { unit: 'month', interval: 1 } });
+  const task = await app.store.create({ title: 'Repeat', targetDate: '2030-01-31', repeat: { unit: 'month', interval: 1 } });
   await app.store.update(task.id, { ...phaseFields('review'), result: 'saved result', xangiSessionId: 'saved-session' });
   const action = name => jsonRequest(app.baseUrl, `/api/tasks/${task.id}/${name}`, { method: 'POST' });
   const done = await action('close');
@@ -410,9 +410,9 @@ test('quick metadata updates do not depend on renaming a completed xangi session
   context.after(app.close);
   const task = await app.store.create({ title: 'Existing', description: 'keep' });
   await app.store.update(task.id, { ...phaseFields('closed'), xangiSessionId: 'closed-session', result: 'keep result', titleSyncError: 'prior title warning' });
-  const updated = await jsonRequest(app.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ dueDate: '2030-03-20' }) });
+  const updated = await jsonRequest(app.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ targetDate: '2030-03-20' }) });
   assert.equal(updated.response.status, 200);
-  assert.equal(updated.body.task.dueDate, '2030-03-20');
+  assert.equal(updated.body.task.targetDate, '2030-03-20');
   assert.equal(Object.hasOwn(updated.body.task, 'labels'), false);
   assert.equal(updated.body.task.description, 'keep');
   assert.equal(updated.body.task.result, 'keep result');
@@ -697,4 +697,96 @@ test('API exposes canonical Inbox/Open/Closed and rejects removed operation name
   for(const operation of ['confirm','complete','reject','start','reset']) assert.equal((await jsonRequest(app.baseUrl,path+'/'+operation,{method:'POST'})).response.status,404);
   assert.equal((await jsonRequest(app.baseUrl,'/api/candidates',{method:'POST',body:'{}'})).response.status,404);
   assert.equal((await jsonRequest(app.baseUrl,'/api/inbox')).body.tasks.length,0);
+});
+
+test('API persists separate dates and exposes date policy for summaries', async () => {
+  const t = await startTestApp();
+  try {
+    const result = await jsonRequest(t.baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ title: 'Submit', targetDate: '2026-11-09', deadlineAt: '2026-11-16', deadlineEvidence: 'Email' }) });
+    assert.equal(result.response.status, 201);
+    const task = result.body.task;
+    assert.equal(task.deadlineAt, '2026-11-16');
+    const edit = await jsonRequest(t.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ targetDate: '2026-11-10' }) });
+    assert.equal(edit.body.task.deadlineAt, task.deadlineAt);
+    const list = await jsonRequest(t.baseUrl, '/api/tasks');
+    assert.ok(list.body.datePolicy.targetDate.includes('目標日'));
+    assert.ok(Object.hasOwn(list.body.dateSummaries, task.id));
+    const oldField = await jsonRequest(t.baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ title: 'Obsolete input', dueDate: '2026-11-09' }) });
+    assert.equal(oldField.response.status, 400);
+    const invalid = await jsonRequest(t.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ deadlineAt: '2026-02-30T17:00+09:00' }) });
+    assert.equal(invalid.response.status, 400);
+    assert.equal(t.store.get(task.id).deadlineAt, task.deadlineAt);
+    const timestamp = '2026-11-16T23:59:59.999+09:00';
+    const rejectedCreate = await jsonRequest(t.baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ title: 'Timestamp', deadlineAt: timestamp }) });
+    assert.equal(rejectedCreate.response.status, 400);
+    const rejectedUpdate = await jsonRequest(t.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ deadlineAt: timestamp }) });
+    assert.equal(rejectedUpdate.response.status, 400);
+    assert.equal(t.store.get(task.id).deadlineAt, '2026-11-16');
+    const none = await jsonRequest(t.baseUrl, `/api/tasks/${task.id}`, { method: 'PUT', body: JSON.stringify({ deadlineStatus: 'none' }) });
+    assert.equal(none.body.task.deadlineAt, '');
+  } finally { await t.close(); }
+});
+
+test('conversation evidence and multiline deadline evidence can be edited and cleared without changing identity', async () => {
+  const t = await startTestApp();
+  try {
+    const candidate = await t.store.createInboxItem({ title: 'Evidence', sourceText: 'Old quote', sourceUrl: 'https://example.com/old', sourceSpeaker: 'Before', sourceKey: 'stable-key' });
+    const path = `/api/tasks/${candidate.id}`;
+    const fields = { sourceText: 'Corrected quote\nSecond line', sourceUrl: 'https://example.com/new', sourceSpeaker: 'After', deadlineEvidence: 'Email\nUpdated deadline' };
+    const edited = await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify(fields) });
+    assert.equal(edited.response.status, 200);
+    assert.deepEqual(edited.body.task.source, { key: 'stable-key', text: fields.sourceText, url: fields.sourceUrl, speaker: 'After' });
+    assert.equal(edited.body.task.deadlineEvidence, fields.deadlineEvidence);
+    assert.equal(edited.body.task.status, 'inbox');
+    const partial = await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify({ sourceText: 'Only quote changed' }) });
+    assert.equal(partial.body.task.source.url, fields.sourceUrl);
+    assert.equal(partial.body.task.source.speaker, 'After');
+    await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify({ notes: 'Unrelated edit' }) });
+    const reloaded = new TaskStore(t.store.filePath); await reloaded.init();
+    assert.equal(reloaded.get(candidate.id).source.text, 'Only quote changed');
+    for (const bad of [{ sourceUrl: 'javascript:alert(1)' }, { sourceUrl: 'https://' }, { sourceUrl: 'http:relative' }, { sourceText: null }, { sourceText: 'x'.repeat(4001) }, { sourceUrl: 'https://example.com/' + 'x'.repeat(2000) }, { sourceSpeaker: 'x'.repeat(121) }]) {
+      const invalid = await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify(bad) });
+      assert.equal(invalid.response.status, 400);
+      assert.equal(t.store.get(candidate.id).source.text, 'Only quote changed');
+    }
+    const cleared = await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify({ sourceText: '', sourceUrl: '', sourceSpeaker: '', deadlineEvidence: '' }) });
+    assert.deepEqual(cleared.body.task.source, { key: 'stable-key', text: '', url: '', speaker: '' });
+    const retry = await t.store.createInboxItem({ title: 'Retry', sourceText: 'Old quote', sourceKey: 'stable-key' });
+    assert.equal(retry.id, candidate.id);
+    assert.equal(retry.source.text, '');
+    const manual = await t.store.create({ title: 'Manual task' });
+    const added = await jsonRequest(t.baseUrl, `/api/tasks/${manual.id}`, { method: 'PUT', body: JSON.stringify({ sourceText: 'New evidence' }) });
+    assert.equal(added.body.task.source.text, 'New evidence');
+    const backup = await t.store.backupSnapshot();
+    const preview = await t.store.previewImport(backup);
+    await t.store.importSnapshot(backup, preview.token);
+    const restored = new TaskStore(t.store.filePath); await restored.init();
+    assert.equal(restored.get(manual.id).source.text, 'New evidence');
+    assert.deepEqual(restored.get(candidate.id).source, { key: 'stable-key', text: '', url: '', speaker: '' });
+  } finally { await t.close(); }
+});
+
+test('goal dates cannot be saved after confirmed deadlines and rejected edits preserve data', async () => {
+  const t = await startTestApp();
+  try {
+    const invalid = await jsonRequest(t.baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ title: 'Invalid order', targetDate: '2026-11-12', deadlineAt: '2026-11-11' }) });
+    assert.equal(invalid.response.status, 400);
+    assert.match(invalid.body.error, /目標日は締め切り日以前/);
+    for (const targetDate of ['2026-11-10', '2026-11-11', '']) {
+      const created = await jsonRequest(t.baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ title: 'Allowed', targetDate, deadlineAt: '2026-11-11' }) });
+      assert.equal(created.response.status, 201);
+    }
+    const created = await jsonRequest(t.baseUrl, '/api/tasks', { method: 'POST', body: JSON.stringify({ title: 'Editable', targetDate: '2026-11-10', deadlineAt: '2026-11-11' }) });
+    const path = `/api/tasks/${created.body.task.id}`;
+    for (const edit of [{ targetDate: '2026-11-12' }, { deadlineAt: '2026-11-09' }]) {
+      const response = await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify(edit) });
+      assert.equal(response.response.status, 400);
+      assert.match(response.body.error, /目標日は締め切り日以前/);
+      assert.equal(t.store.get(created.body.task.id).targetDate, '2026-11-10');
+      assert.equal(t.store.get(created.body.task.id).deadlineAt, '2026-11-11');
+    }
+    const cleared = await jsonRequest(t.baseUrl, path, { method: 'PUT', body: JSON.stringify({ targetDate: '2026-11-12', deadlineStatus: 'none' }) });
+    assert.equal(cleared.response.status, 200);
+    assert.equal(cleared.body.task.deadlineAt, '');
+  } finally { await t.close(); }
 });

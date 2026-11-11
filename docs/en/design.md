@@ -42,7 +42,7 @@ The browser and server share definitions and validation in `public/task-state.js
 - `POST /api/inbox`: create an evidence-backed Inbox item.
 - `GET /api/inbox/capabilities`: sourceKeys:true and statusModel:2.
 - `GET /api/tasks/:id?history=0`: retrieve a task without requesting chat history.
-- `PUT /api/tasks/:id`: edit title, description, notes, due date, repeat and category. Lifecycle changes use dedicated operations.
+- `PUT /api/tasks/:id`: edit title, description, notes, goal, external deadline, management date, repeat and category. Lifecycle changes use dedicated operations.
 - `POST /api/tasks/:id/open`: accept Inbox or reopen Closed as Open / idle.
 - `POST /api/tasks/:id/dismiss`: dismiss Inbox as Closed / idle with dismissed reason.
 - `POST /api/tasks/:id/close`: complete as Closed / idle with completed reason.
@@ -80,10 +80,16 @@ Notion uses PUT /api/settings/notion for the parent, POST/PUT /api/tasks/:id/not
 
 The selected tab name appears only in the tabs; the list heading shows the category. List titles use 14px text with touch targets at least 44px high. Detail inputs use 16px text and a shared 44px height. Progress appears automatically beside the status in 11px text, without a progress selector or manual start/reset buttons. The category heading uses 12px text; tabs and refresh share one row. Settings and theme controls share 16px text.
 
-The detail panel places due date and category side by side.
+The detail form includes dates, deadline verification and evidence, and category.
 
 Inbox is an independent sidebar destination above categories. It ignores category filters; category Open/Closed/All views exclude Inbox items. Candidate categoryId is provisional: editing it does not accept the item, and acceptance preserves it.
 
 ## Notion linking CLI
 
 `skills/xs-xangi-tasks/scripts/tasks.py` uses authenticated xangi `extension_request` calls. `notion link` performs GET, PUT `/api/tasks/:id/notion` with `page`, then GET to verify saved values; `notion show` only performs GET. Task IDs are encoded as a single path segment. Mutations are never automatically retried. Task notes and Notion page content are unchanged, and output distinguishes saved API values from UI verification.
+
+## Date contract
+
+`targetDate` is a personal goal. `deadlineStatus` is unknown / none / confirmed; only confirmed has a YYYY-MM-DD calendar date in `deadlineAt`. `deadlineEvidence` stores its source. Storage and Import share validation. Old dates are converted once before startup. Backup version 2 is retained; old date fields must be converted before Import. `GET /api/tasks` includes `datePolicy` and per-ID `dateSummaries` (today’s goal, missed goal, deadlines within seven days, overdue deadlines). Both deadlines and goals use Japan calendar days. UI, API, storage and Export/Import share date-only values; timestamps are rejected without conversion. UI and delegation share `public/task-dates.js`, also embedded in extension HTML.
+
+`PUT /api/tasks/:id` edits conversation evidence through `sourceText` (4000 characters), `sourceUrl` (http/https, 2000 characters), and `sourceSpeaker` (120 characters). Omitted fields are retained; empty strings clear them. Values use the existing `source.text/url/speaker` structure; `source.key` cannot be edited. `deadlineEvidence` remains independently editable.

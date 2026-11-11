@@ -82,7 +82,7 @@ test('folders and categories survive reload, move independently and preserve rec
   const old = await store.create({ title: 'Unclassified' });
   const folder = await store.saveCollection('folders', { name: 'Work' });
   const category = await store.saveCollection('categories', { name: 'Project', folderId: folder.id });
-  const task = await store.create({ title: 'Daily', categoryId: category.id, repeat: { unit: 'day', interval: 1 }, dueDate: '2026-10-22' });
+  const task = await store.create({ title: 'Daily', categoryId: category.id, repeat: { unit: 'day', interval: 1 }, targetDate: '2026-10-22' });
   await assert.rejects(store.removeCollection('categories', category.id), /先にタスク/);
   await assert.rejects(store.removeCollection('folders', folder.id), /先にカテゴリ/);
   const completed = await store.complete(task.id, '2026-10-22');

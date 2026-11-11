@@ -1,3 +1,4 @@
+import { dateContext } from '../public/task-dates.js';
 function messageText(message) {
   if (typeof message?.text === 'string') return message.text;
   if (typeof message?.message === 'string') return message.message;
@@ -33,7 +34,7 @@ export class XangiConnector {
   async dispatchTask(task, onSessionReady = async () => {}) {
     const text = [task.title, 'xangi-tasksの依頼です。実行内容と結果はこの会話で報告してください。',
       `Task ID: ${task.id}`, task.description, task.delegationInstructions,
-      task.dueDate ? `期限: ${task.dueDate}` : ''].filter(Boolean).join('\n\n');
+      dateContext(task)].filter(Boolean).join('\n\n');
     let sessionId = task.xangiSessionId;
     let session;
     if (sessionId) {
@@ -130,7 +131,7 @@ export class XangiConnector {
       `Task ID: ${task.id}`,
       task.description ? `Description:\n${task.description}` : '',
       task.delegationInstructions ? `今回の追加指示:\n${task.delegationInstructions}` : '',
-      task.dueDate ? `期限: ${task.dueDate}` : '',
+      dateContext(task),
     ]
       .filter(Boolean)
       .join('\n\n');

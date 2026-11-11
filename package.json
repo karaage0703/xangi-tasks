@@ -1,13 +1,13 @@
 {
   "name": "xangi-tasks",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "lint": "node --check public/task-state.js && node --check src/auth.js && node --check src/notion.js && node --check public/clipboard.js && node --check src/task-store.js && node --check src/xangi-connector.js && node --check src/app.js && node --check src/server.js && node --check src/extension.js && node --check public/app.js",
+    "lint": "node --check scripts/migrate-target-dates.js && node --check public/task-dates.js && node --check public/task-state.js && node --check src/auth.js && node --check src/notion.js && node --check public/clipboard.js && node --check src/task-store.js && node --check src/xangi-connector.js && node --check src/app.js && node --check src/server.js && node --check src/extension.js && node --check public/app.js",
     "test": "node --test",
     "build": "npm run lint && node scripts/build-check.js",
     "test:notion-cli": "uv run --no-project python -m unittest discover -s test -p test_tasks_notion_cli.py"

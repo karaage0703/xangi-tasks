@@ -72,17 +72,31 @@ Inbox is a separate sidebar destination above categories; category tabs are Open
 
 To open xangi-tasks inside xangi, link xangi-extension.json and start the extension. xangi starts the application itself on an automatically allocated loopback port. Stopping the extension also stops the application and polling.
 
-Edit changes the title, description, and due date. Dates do not trigger reminders or automatic execution. Copy the task link to use it in xangi.
+Edit changes the title, description, and goal / external deadline. Dates do not trigger reminders or automatic execution. Copy the task link to use it in xangi.
 
-## Due-date order and repeat
+## Goals and external deadlines
 
-Sort by newest, nearest or furthest due date; undated tasks always come last. Sort choices persist in this browser. Tab counts reflect the selected category and exclude Inbox candidates. Open tasks due before today in Japan show an overdue indicator in the list.
+A goal must be on or before its confirmed deadline. The same day is allowed. A later goal displays a red warning directly below the goal field, marks that field with a red border, and cannot be saved. Correcting the dates clears the warning. Dates are not compared when either date is unset.
 
-Choose daily, weekdays (Monday–Friday), weekly, monthly, yearly, or custom (every 1–999 days/weeks/months/years) when creating or editing. Weekly rules accept multiple weekdays; no selection uses the initial due weekday. Enabling repeat without a due date sets the first due date to today in Japan.
+In lists, Open tasks show today’s goal in blue and missed goals in amber. Confirmed deadlines are amber on the due day and red from the following day. Text labels also identify each state. Closed tasks and Inbox candidates are not highlighted. These indicators apply when the date field is enabled for that tab and update after Japan midnight through regular polling (normally every four seconds).
+
+`targetDate` (YYYY-MM-DD) is a personal goal. Today’s goals uses the Japan calendar day. A missed goal asks you to review the plan; it never means an external deadline was missed.
+
+`deadlineAt` is a calendar date in YYYY-MM-DD format. `deadlineStatus` is `unknown` (unverified), `none` (verified absent), or `confirmed` (verified date). Entering a date confirms it; choosing none or unknown clears it. The UI, API, storage and Export/Import use date-only values. Timestamp values are rejected without conversion. Today and overdue comparisons use the Japan calendar day. Store source URLs or quotations in `deadlineEvidence`. Only a confirmed external deadline on an Open task triggers an overdue warning. There is no dedicated upcoming/overdue tab. Show deadlines through Display options in Open or All and sort by deadline.
+
+Recurring tasks advance the goal. External deadlines reset to unknown for the next occurrence rather than being inferred.
+
+Dates alone do not send reminders or execute tasks. AI morning summaries and reminders must read both dates, verification and evidence, plus the API `datePolicy` / `dateSummaries`, and distinguish goals from external deadlines. Delegation includes these meanings and evidence.
+
+## Goal order and repeat
+
+The list shows only goals by default. Display options toggle goals, actual deadlines, recurrence and status. Choose the goal date, actual deadline or creation time in the compact sort field, then select ascending (oldest first) or descending (newest first) separately; undated tasks always come last. Display fields and sort choices persist separately for each tab (Open, Today, Closed and All) in this browser. Tabs without their own preferences inherit the previous shared settings. Categories use the preferences of the current tab. Tab counts reflect the selected category and exclude Inbox candidates. Open tasks with a goal before today in Japan ask you to review the plan.
+
+Choose daily, weekdays (Monday–Friday), weekly, monthly, yearly, or custom (every 1–999 days/weeks/months/years) when creating or editing. Weekly rules accept multiple weekdays; no selection uses the initial goal weekday. Enabling repeat without a goal sets the first goal to today in Japan.
 
 Completing a task keeps its history and creates one next occurrence in Open / idle. Open tasks can also be completed manually. Title, description and repeat carry over; session and results do not. Nothing is automatically delegated or notified. Edit the next task to disable repeat, or delete it to stop. Editing a completed occurrence does not update its successor.
 
-Dates use Japan calendar days. Late completion skips missed dates and chooses the next scheduled date after both the due date and completion day. Weeks start Monday. Month ends clamp to the last valid day but retain the original anchor (Jan 31 → Feb 28 → Mar 31); leap years work similarly. Editing due date or repeat resets the anchor.
+Dates use Japan calendar days. Late completion skips missed dates and chooses the next scheduled date after both the goal and completion day. Weeks start Monday. Month ends clamp to the last valid day but retain the original anchor (Jan 31 → Feb 28 → Mar 31); leap years work similarly. Editing goal or repeat resets the anchor.
 
 Repeat options follow [Microsoft To Do help](https://support.microsoft.com/en-us/todo/add-due-dates-and-reminders-in-microsoft-to-do). Late-completion and month-end rules are the xangi-tasks behavior described above; full Microsoft compatibility or synchronization is not claimed.
 
@@ -102,7 +116,11 @@ Set `XANGI_TASKS_DATA` to choose the data file. Relative paths are resolved from
 
 ## Edit content directly
 
-Open a task and type directly in its title or background/completion-criteria fields. Changes save on leaving a field; Enter also saves the title, and Ctrl/Cmd+Enter saves the description. Plain Enter inserts a newline in the description. IME confirmation does not submit. Dates and categories remain directly editable; use the recurrence/detail settings button for recurrence.
+Open “Verification and evidence” in task details to edit deadline verification, deadline evidence and conversation evidence. It starts collapsed, while dates and category stay visible. Creation and advanced editing also collapse deadline verification and evidence initially. Conversation evidence uses the same neutral styling as other edit fields.
+
+Conversation evidence can be added, edited or cleared in task details: quote, source URL and speaker. Deadline evidence also supports multiple lines. Both save on leaving the field; Enter inserts a newline and Ctrl/⌘+Enter saves. Changes replace stored values. Source URLs must use http/https. The collector key stays unchanged so recollection does not undo corrections or create duplicate candidates.
+
+Select a task name to open its details and edit its title or task content directly. Changes save on leaving a field; Enter also saves the title, and Ctrl/Cmd+Enter saves the content. Plain Enter inserts a newline in the content. IME confirmation does not submit. The content and notes fields start at 180px high and can be resized vertically. Edit the goal and deadline in their compact date rows, and expand goal-based recurrence directly below the goal to change its frequency, interval or weekdays. Move categories by dragging or using the move handle. To delete a task, use the trash icon at the bottom right of its details and confirm.
 
 The save status is visible. Failed drafts remain available for retry. Unsaved or saving changes keep the detail open until saving succeeds. Periodic refreshes do not overwrite active drafts. Internal conversation references stay hidden and are preserved on save.
 
@@ -185,3 +203,9 @@ Run CLI regression tests with `npm run test:notion-cli` (requires uv).
 On desktop (901px and wider), drag the boundaries between categories, list and details. The list fills the remaining space. Focus a separator with Tab and use arrow keys (Shift for larger steps), Home/End, or double-click to reset. Widths persist per browser and are constrained on smaller windows to keep the list usable. Mobile retains its category drawer and full-screen details.
 
 Task list and detail API responses include notes in `notes`, so AI can retrieve them when asked to check a task. Notes are not automatically included in the “Delegate to xangi” message.
+
+## Date migration
+
+Move old dates into goals once and remove the old field. Never infer external deadlines. The application only handles goals and actual deadlines; reading, importing or editing old date fields is rejected.
+
+Stop the extension and back up task data, collections and settings. Run `node scripts/migrate-target-dates.js <tasks.json> <new-tasks.json>`, replace the configured task file with the converted output, then start the extension. The command also accepts Export files. Existing nonempty goals take precedence. Source files are unchanged and existing output files are never overwritten.
