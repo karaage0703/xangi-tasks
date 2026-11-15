@@ -1,16 +1,32 @@
 {
   "name": "xangi-tasks",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "lint": "node --check public/task-dates.js && node --check public/task-state.js && node --check src/auth.js && node --check src/notion.js && node --check public/clipboard.js && node --check src/task-store.js && node --check src/xangi-connector.js && node --check src/app.js && node --check src/server.js && node --check src/extension.js && node --check public/app.js",
+    "lint": "node --check src/ui/description-editor.js && node --check scripts/build-editor.js && node --check public/task-dates.js && node --check public/task-state.js && node --check src/auth.js && node --check src/notion.js && node --check public/clipboard.js && node --check src/task-store.js && node --check src/xangi-connector.js && node --check src/app.js && node --check src/server.js && node --check src/extension.js && node --check public/app.js",
     "test": "node --test",
-    "build": "npm run lint && node scripts/build-check.js",
-    "test:notion-cli": "uv run --no-project python -m unittest discover -s test -p test_tasks_notion_cli.py"
+    "build": "npm run lint && npm run build:editor && node scripts/build-check.js",
+    "test:notion-cli": "uv run --no-project python -m unittest discover -s test -p test_tasks_notion_cli.py",
+    "test:candidates": "uv run --no-project python -m unittest discover -s test -p test_candidate_collection.py",
+    "build:editor": "node scripts/build-editor.js",
+    "pretest": "npm run build:editor"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@tiptap/core": "3.34.0",
+    "@tiptap/extension-image": "3.34.0",
+    "@tiptap/extension-list": "3.34.0",
+    "@tiptap/extension-table": "3.34.0",
+    "@tiptap/markdown": "3.34.0",
+    "@tiptap/pm": "3.34.0",
+    "@tiptap/starter-kit": "3.34.0",
+    "marked": "17.0.6"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
 }

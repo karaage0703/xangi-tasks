@@ -8,6 +8,12 @@ The browser and bundled skill call xangi-tasks. Delegation creates or reuses an 
 
 xangi starts the application as a managed extension on an automatically allocated loopback port. The process owns API handling, JSON storage and polling. Users access it through the xangi port.
 
+## Description and notes editing
+
+Descriptions and notes use independent Tiptap instances. Saving serializes Markdown strings into the existing `description` and `notes` fields without changing the API or storage format. Loading does not save, and failed saves, polling, and IME composition must not replace drafts. Documents containing HTML tags or comments use a source textarea to preserve that content.
+
+`scripts/build-editor.js` generates a locally served bundle and dependency license texts from the lockfile. Both fields share the bundle. Standalone pages load it as a module, while the extension HTML renderer embeds it in the existing page.
+
 ## Lifecycle and execution
 
 API, storage and UI use the same lifecycle:
@@ -93,3 +99,7 @@ Inbox is an independent sidebar destination above categories. It ignores categor
 `targetDate` is a personal goal. `deadlineStatus` is unknown / none / confirmed; only confirmed has a YYYY-MM-DD calendar date in `deadlineAt`. `deadlineEvidence` stores its source. Storage and Import share validation. `GET /api/tasks` includes `datePolicy` and per-ID `dateSummaries` (today’s goal, missed goal, deadlines within seven days, overdue deadlines). Both deadlines and goals use Japan calendar days. UI, API, storage and Export/Import share date-only values; timestamps are rejected without conversion. UI and delegation share `public/task-dates.js`, also embedded in extension HTML.
 
 `PUT /api/tasks/:id` edits conversation evidence through `sourceText` (4000 characters), `sourceUrl` (http/https, 2000 characters), and `sourceSpeaker` (120 characters). Omitted fields are retained; empty strings clear them. Values use the existing `source.text/url/speaker` structure; `source.key` cannot be edited. `deadlineEvidence` remains independently editable.
+
+## Managed storage scope
+
+Default data is workspace- and instance-scoped outside source. The destination is explicit or instance-scoped by default. See [storage and updates](usage.md#persistent-storage-and-updates).

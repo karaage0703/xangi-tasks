@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+cd -- "$(dirname -- "$0")/.."
+node --input-type=module - <<'JS'
+import { access, realpath } from 'node:fs/promises';
+import { isAbsolute, relative } from 'node:path';
+const file = process.env.XANGI_TASKS_DATA;
+if (!file || !isAbsolute(file)) throw new Error('Set XANGI_TASKS_DATA to an absolute persistent file outside the source before updating.');
+await access(file);
+const rel = relative(await realpath('.'), await realpath(file));
+if (rel !== '..' && !rel.startsWith('../')) throw new Error('Task data must be outside the updated source directory.');
+JS
+npm ci --include=dev
+npm run build

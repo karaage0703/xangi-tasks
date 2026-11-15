@@ -21,6 +21,7 @@ Requires Node.js 22+ and xangi with Web Chat enabled.
 
 ```bash
 npm ci
+npm run build
 cp .env.example .env
 # Configure XANGI_URL and XANGI_TOKEN before starting
 xangi extension link /absolute/path/to/xangi-tasks/xangi-extension.json
@@ -32,7 +33,7 @@ Open xangi-tasks from the xangi Extensions screen. The entrypoint loads the appl
 - `XANGI_URL`: xangi Web API; defaults to the host URL supplied by xangi.
 - `XANGI_TOKEN`: xangi terminal API Bearer token; falls back to `XANGI_EVEN_TERMINAL_TOKEN`.
 - `XANGI_PROVIDER`: `codex` or `claude`; default `codex`.
-- `XANGI_TASKS_DATA`: task file; default `.data/tasks.json`, resolved from the application root.
+- `XANGI_TASKS_DATA`: task file; default `<workspace>/.xangi-tasks/instance-<instance-id>/tasks.json`.
 - `XANGI_TASKS_POLL_MS`: polling interval for running tasks; default `3000`.
 
 The upstream xangi token stays on the server. xangi-tasks has its own authentication; see Authentication below.
@@ -55,6 +56,8 @@ Candidate types are `action`, `waiting`, and `hold`. Candidates cannot be delega
 2. Open the link and verify the selected task details.
 3. Retrieve and update its notes through the extension API.
 4. Reload and verify the saved notes, then complete the task.
+
+Task descriptions and notes each use an independent Tiptap editor with directly editable task lists, paragraphs, tables, links and code blocks. There is no preview/edit switch. Enter continues a list or creates a paragraph; Shift+Enter inserts a line break; Backspace exits an empty list item; Ctrl/⌘+Z undoes edits. Checkboxes save immediately; text saves on blur or Ctrl/⌘+Enter, with IME composition excluded. The stored format remains Markdown. Documents containing raw HTML or comments use a plain-source field to preserve them. Opening a task does not rewrite its source, but editing may normalize Markdown formatting. Image references are shown without fetching remote images. Failed saves keep the draft for retry. Checking a description item does not complete the overall task.
 
 ## Development
 
@@ -118,7 +121,7 @@ Open tasks automatically show progress as a small read-only status label, withou
 
 Sign in to xangi and open xangi-tasks from Extensions. xangi manages the connection token.
 
-Set `XANGI_TASKS_DATA` to choose the data file. Relative paths are resolved from the application root; the default is `.data/tasks.json`.
+Set `XANGI_TASKS_DATA` to choose the data file. Relative paths are resolved from the application root; the default is `<workspace>/.xangi-tasks/instance-<instance-id>/tasks.json`.
 
 ## Edit content directly
 
@@ -180,6 +183,8 @@ Import accepts an exported JSON file up to 20 MiB. Preview its counts, then expl
 
 The bundled xs-xangi-tasks skill reads important mail from xangi-mail, the owner's platform conversation logs, and selected Google calendars, reviews evidence and later context, and registers candidates without executing them. See the [collection procedure](../../skills/xs-xangi-tasks/references-candidates.md). xangi-mail never pushes tasks. Each source is optional and can be used independently. Calendar collection requires authenticated gogcli and `--calendar-config`; `--calendar-days` defaults to 14. Candidates appear in Inbox and move to Open when confirmed.
 
+Retrieved text and context are saved in full without a character-count exclusion. Review long sources in ranges through the end and defer decisions if full review is not possible. Missing or truncated mail bodies remain collection errors. Incomplete xangi-tasks review is distinct from Gmail unread status; collection alone does not change that status.
+
 POST /api/inbox accepts an optional sourceKey of up to 300 characters. Retrying a key returns the existing record, including rejected or soft-deleted records. GET /api/inbox/capabilities returns sourceKeys:true and statusModel:2. Deferred and ignored decisions are tracked by the collector's private state file.
 
 Open Inbox from the top of the category menu. Candidates show a proposed category that can be changed in details without accepting them. Use the acceptance button to move an item to Open while keeping its category.
@@ -222,3 +227,15 @@ Chromium defaults to `/snap/bin/chromium`. Set `BROWSER_EXECUTABLE` to use anoth
 Date input display order depends on the browser language and locale. The script also fixes Chromium's startup language and process locale to Japanese, displaying dates in year/month/day order, such as `2030/04/15`. API and stored values use `2030-04-15`.
 
 The script seeds fictional data in a temporary store and uses a local server with a mock connector. Both browser and server dates are fixed to April 15, 2030, with Japanese UI, Asia/Tokyo time, and a light theme. No real data or credentials are used, and no xangi, Notion, or AI services are contacted. External browser requests are blocked. Task counts, desktop details, horizontal overflow, and JavaScript errors are checked before capture.
+
+## Persistent storage and updates
+
+New installations store workspace data separately for each instance. Explicit XANGI_TASKS_DATA settings retain their meaning; relative paths remain relative to the app root. The destination is explicit or uses this default.
+
+If saved tasks are missing or another unexpected state occurs, the responsible AI inspects the actual destination, environment variables, logs, and stored data. Preserve data and correct the destination as needed, then verify startup, doctor, and retrieval of tasks, categories, and notes. Configure the update destination in the parent instance environment.
+
+Host-managed preparation requires an existing persistent file outside source before npm ci/build. Missing or unsafe settings fail preparation and permit host rollback. No data is moved or deleted automatically.
+
+The parent URL is the normal destination; explicit XANGI_URL selects another instance. Connection status displays the effective origin and host default backend/model, or reports that the default could not be obtained. Embedded screens omit duplicate Home navigation.
+
+Required host features: managed HTTP schema 2, sessions/chat, agents, runtime-settings, and repository-managed updates. Verification against an actual host version has not been performed. Record the tested host version and remaining unknowns after runtime integration; mock tests are not runtime verification.

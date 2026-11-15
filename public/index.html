@@ -19,7 +19,7 @@
     <div class="app-frame">
       <header class="app-topbar">
         <div class="app-page-navigation">
-          <a id="xangi-home" aria-label="xangiホーム" class="button home-link" href="/" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 10 9-7 9 7v10H15v-7H9v7H3z"/></svg><span>xangiホーム</span></a>
+          <a id="xangi-home" aria-label="xangiホーム" class="button home-link" href="/" hidden target="_top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 10 9-7 9 7v10H15v-7H9v7H3z"/></svg><span>xangiホーム</span></a>
           <button id="open-categories" class="button mobile-category-control" aria-label="カテゴリを開く" aria-controls="category-sidebar" aria-expanded="false">☰</button>
           <h1 class="brand">xangi-tasks</h1>
         </div>
@@ -111,8 +111,8 @@
           </div>
         </details>
         <p class="detail-properties" id="detail-properties"></p>
-        <label class="detail-description" for="detail-description">タスクの内容<textarea id="detail-description" name="description" form="quick-edit" rows="4" maxlength="4000" placeholder="やることや完了の目安を入力" aria-describedby="quick-save-status"></textarea></label>
-        <label class="detail-notes" for="detail-notes">メモ<textarea id="detail-notes" name="notes" form="quick-edit" rows="5" maxlength="10000" placeholder="思いついたこと、途中経過、あとで確認したいことなど" aria-describedby="notes-hint quick-save-status"></textarea><small id="notes-hint">タスクの補足や途中経過を残せます。</small></label>
+        <div class="detail-description"><span id="description-label">タスクの内容</span><div id="description-checklist" class="task-markdown-editor" role="group" aria-labelledby="description-label" hidden></div><textarea id="detail-description" name="description" form="quick-edit" rows="4" maxlength="4000" placeholder="やることや完了の目安を入力" aria-describedby="quick-save-status"></textarea></div>
+        <div class="detail-notes"><span id="notes-label">メモ</span><div id="notes-editor" class="task-markdown-editor" role="group" aria-labelledby="notes-label" hidden></div><textarea id="detail-notes" name="notes" form="quick-edit" rows="5" maxlength="10000" placeholder="思いついたこと、途中経過、あとで確認したいことなど" aria-describedby="notes-hint quick-save-status"></textarea><small id="notes-hint">タスクの補足や途中経過を残せます。</small></div>
 
         <p class="detail-error" id="detail-error" hidden></p>
         <div class="detail-footer" id="detail-actions"></div>

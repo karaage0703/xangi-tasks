@@ -310,7 +310,7 @@ body[data-drag-kind="task"] [data-drop-kind="category"], body[data-drag-kind="ca
 @media (max-width: 900px) {
   .app-topbar { min-height: 60px; padding: 8px 12px; gap: 8px; flex-wrap: nowrap; }
   .app-page-navigation { flex-wrap: nowrap; gap: 8px; }
-  .app-topbar .brand { display: none; }
+  .app-topbar .brand { display: block; font-size: 18px; }
   .app-topbar .home-link { width: 44px; padding: 0; justify-content: center; }
   .app-topbar .home-link span { display: none; }
   .mobile-category-control { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
@@ -427,3 +427,29 @@ body.resizing-panes { cursor: col-resize; user-select: none; }
 
 .date-order-warning { grid-column: 1 / -1; margin: 0; color: var(--danger); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
 #task-dialog .date-row input[aria-invalid="true"], input[name="targetDate"][aria-invalid="true"] { border: 1px solid var(--danger); border-radius: 4px; }
+
+/* The host supplies shared navigation and theme controls in embedded mode. */
+:root[data-xangi-embedded="true"] .theme-select{display:none}
+
+/* Optional embedded presentation chosen by this extension. */
+:root[data-xangi-embedded="true"] #xangi-home{display:none}
+
+/* One document editor; list rows are not separate form fields. */
+#task-dialog .task-markdown-editor { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface); }
+#task-dialog .task-markdown-editor:focus-within { border-color: var(--accent); }
+#task-dialog .task-markdown-editor .tiptap { min-height: 156px; outline: none; color: var(--ink); font-size: 16px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+#task-dialog .task-markdown-editor .tiptap[contenteditable='false'] { opacity: .75; }
+#task-dialog .task-markdown-editor p { margin: 0 0 8px; }
+#task-dialog .task-markdown-editor .tiptap > :last-child { margin-bottom: 0; }
+#task-dialog .task-markdown-editor ul, #task-dialog .task-markdown-editor ol { padding-left: 24px; margin: 8px 0; }
+#task-dialog .task-markdown-editor ul[data-type='taskList'] { padding-left: 0; list-style: none; }
+#task-dialog .task-markdown-editor li[data-type='taskItem'] { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0; }
+#task-dialog .task-markdown-editor li[data-type='taskItem'] > label { display: flex; flex: 0 0 auto; padding-top: 4px; }
+#task-dialog .task-markdown-editor li[data-type='taskItem'] > div { flex: 1; min-width: 0; }
+#task-dialog .task-markdown-editor li[data-type='taskItem'] > div > p { margin: 0; }
+#task-dialog .task-markdown-editor input[type='checkbox'] { width: 18px; height: 18px; min-height: 18px; margin: 0; padding: 0; accent-color: var(--accent); cursor: pointer; }
+#task-dialog .task-markdown-editor a { color: var(--accent); text-decoration: underline; }
+#task-dialog .task-markdown-editor pre { max-width: 100%; overflow: auto; padding: 8px; background: var(--surface-muted); white-space: pre; }
+#task-dialog .task-markdown-editor table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+#task-dialog .task-markdown-editor td, #task-dialog .task-markdown-editor th { border: 1px solid var(--border); padding: 4px 6px; }
+.description-image-reference { color: var(--ink-secondary); }

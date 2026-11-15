@@ -121,9 +121,10 @@ export function createTaskServer({ store, connector, publicDir, pollIntervalMs =
       if (req.method === 'GET' && url.pathname === '/api/health') {
         try {
           const info = await connector.health();
-          json(res, 200, { ok: true, xangi: { connected: true, version: info.version || 'xangi' } });
+          const defaultAgent = connector.defaultAgent ? await connector.defaultAgent().catch(() => null) : null;
+          json(res, 200, { ok: true, xangi: { connected: true, version: info.version || 'xangi', destination: connector.destination, defaultAgent } });
         } catch (error) {
-          json(res, 200, { ok: true, xangi: { connected: false, error: error.message } });
+          json(res, 200, { ok: true, xangi: { connected: false, error: error.message, destination: connector.destination } });
         }
         return;
       }

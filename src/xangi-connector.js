@@ -19,6 +19,17 @@ export class XangiConnector {
     return this.#request(`/api/info?provider=${this.provider}`);
   }
 
+  get destination() {
+    try { return new URL(this.baseUrl).origin; } catch { return ''; }
+  }
+
+  async defaultAgent() {
+    const result = await this.#request('/api/runtime-settings');
+    const value = result.backend?.value;
+    if (!value?.backend) throw new Error('本体の既定担当を取得できませんでした');
+    return { backend: value.backend, model: value.model || '' };
+  }
+
   async listAgents() {
     const body = await this.#request('/api/agents');
     if (!Array.isArray(body.agents)) throw new Error('エージェント一覧を取得できませんでした');
@@ -247,7 +258,7 @@ export class XangiConnector {
       ...init,
       headers,
       // Platform continuation responds after the AI finishes, like the chat SSE.
-      // Its lifecycle is tracked by Tasks, not by the short metadata timeout.
+      // Its lifecycle is tracked by xangi-tasks, not by the short metadata timeout.
       signal: timeoutMs === null ? undefined : AbortSignal.timeout(timeoutMs),
     });
     const text = await response.text();
