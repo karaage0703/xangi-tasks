@@ -12,6 +12,12 @@ xangi-tasksはタスク・分類・設定を保存し、xangiへ作業を依頼�
 
 拡張IDとcapabilityは `xangi-tasks` / `xangi-tasks.manage` です。xangiが拡張プロセスとして本体を起動し、タスクAPI・JSON保存・同期処理をそのプロセス内で実行します。内部ポートは自動割当、画面とAPIの入口はxangiのポートです。メール取得には `xangi-mail` / `xangi-mail.read` を使います。
 
+## 本文とメモの編集
+
+本文とメモは、それぞれ独立したTiptapインスタンスで編集します。保存時はMarkdown文字列を既存の`description`・`notes`へ渡し、APIや保存形式は変更しません。読み込みだけでは保存せず、保存失敗・ポーリング・IME変換中に編集中の内容を置換しないよう管理します。HTMLタグやコメントを含む原文は、欠落を防ぐためtextareaで編集します。
+
+`scripts/build-editor.js`がlockfileの依存からローカル配信用bundleと第三者ライセンス一覧を生成します。同じbundleを本文とメモで共有し、単体画面ではmoduleとして読み込み、拡張画面では既存のHTML生成処理で埋め込みます。
+
 ## タスク状態と実行状態
 
 API・保存データ・画面で同じ名前を使います。画面のAllは一覧の表示条件であり、保存する状態ではありません。
@@ -111,3 +117,7 @@ Inboxはカテゴリ一覧先頭の独立した受信箱です。カテゴリの
 `targetDate`は自主的な目標日。`deadlineStatus`はunknown / none / confirmedで、confirmedだけがYYYY-MM-DD形式の`deadlineAt`を持ちます。根拠は`deadlineEvidence`。保存・Import時は同一のバリデーションを使います。`GET /api/tasks`は全件と`datePolicy`・ID別`dateSummaries`（今日の目標・目標日超過・7日以内の締切・締切超過）を返します。締切・目標日とも日本の暦日で判定します。締切は画面・API・保存・Export/Importですべて日付のみを扱います。日時形式は受け付けず、自動変換もしません。UIと委任は共有の`public/task-dates.js`を使用し、拡張HTMLにも埋め込みます。
 
 `PUT /api/tasks/:id`は`sourceText`（4000文字）、`sourceUrl`（http/https、2000文字）、`sourceSpeaker`（120文字）で会話の根拠を編集します。省略は保持、空文字は消去。保存先は既存の`source.text/url/speaker`で、`source.key`は編集対象外です。締切の根拠は`deadlineEvidence`で独立に編集します。
+
+## managed時の保存単位
+
+既定データはsource外のworkspace・instance単位で保持します。保存先は明示指定またはinstance別の既定先で決めます。保存と更新条件は[使い方](usage.md#保存先と更新)を参照してください。

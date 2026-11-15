@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createTaskServer } from './app.js';
 import { TaskStore } from './task-store.js';
 import { XangiConnector } from './xangi-connector.js';
+import { taskDataPath } from './runtime-paths.js';
 
 const rootDir = resolve(fileURLToPath(new URL('..', import.meta.url)));
 if (process.argv[2] !== 'serve') throw new Error('Start xangi-tasks from xangi Extensions');
@@ -13,7 +14,7 @@ const token = process.env.XANGI_EXTENSION_AUTH_TOKEN;
 if (!token || token.length < 32) throw new Error('XANGI_EXTENSION_AUTH_TOKEN is required');
 const baseUrl = process.env.XANGI_URL || process.env.XANGI_EXTENSION_HOST_URL;
 if (!baseUrl) throw new Error('xangi host URL is required');
-const store = new TaskStore(resolve(rootDir, process.env.XANGI_TASKS_DATA || '.data/tasks.json'));
+const store = new TaskStore(taskDataPath({ root: rootDir, workspace }));
 await store.init();
 
 const connector = new XangiConnector({

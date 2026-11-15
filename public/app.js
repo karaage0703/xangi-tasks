@@ -1,3 +1,5 @@
+import './editor.bundle.js';
+const { updateMarkdownEditor } = globalThis.TasksDescriptionEditor;
 import { dateSummary, sortTasks, dateOrderWarning } from './task-dates.js';
 import { taskPhase } from './task-state.js';
 function readPreference(key, fallback = '') {
@@ -252,6 +254,8 @@ function renderQuickEdit(task) {
   if (changedTask || (!quickDirty.has('repeat') && JSON.stringify(shownRepeat) !== JSON.stringify(task.repeat))) fillRepeat(quickForm, task.repeat);
   for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, #quick-edit textarea, [form="quick-edit"]')) input.disabled = quickSaving || state.busy.has(task.id);
   if (!quickSaving && !state.busy.has(task.id)) updateRepeatForm(document.querySelector('#quick-edit'));
+  updateMarkdownEditor(document.querySelector('#detail-description'), document.querySelector('#description-checklist'), { reset: changedTask, disabled: quickSaving || state.busy.has(task.id), onCommit: () => void saveQuickEdit() });
+  updateMarkdownEditor(document.querySelector('#detail-notes'), document.querySelector('#notes-editor'), { reset: changedTask, disabled: quickSaving || state.busy.has(task.id), onCommit: () => void saveQuickEdit(), labelId: 'notes-label', describedBy: 'notes-hint quick-save-status' });
   showDateOrderWarning(quickForm);
 }
 
@@ -280,7 +284,7 @@ function visibleDescription(value = '') {
 }
 
 async function saveQuickEdit() {
-  if (quickSaving || !state.selectedTaskId || !quickDirty.size) return;
+  if (quickSaving || !state.selectedTaskId || !quickDirty.size || [...document.querySelectorAll('.task-markdown-editor')].some(editor => editor.editorComposing)) return;
   const id = state.selectedTaskId;
   const payload = {};
   for (const name of quickDirty) {
@@ -483,7 +487,8 @@ async function checkConnection() {
     const connected = health.xangi.connected;
     dot.className = `status-dot ${connected ? 'connected' : 'disconnected'}`;
     label.textContent = connected ? 'xangi接続済み' : 'xangiに接続できません';
-    detail.textContent = connected ? `API ${health.xangi.version}` : health.xangi.error;
+    const defaultAgent = health.xangi.defaultAgent;
+    detail.textContent = [connected ? `API ${health.xangi.version}` : health.xangi.error, health.xangi.destination, defaultAgent ? `本体の既定: ${defaultAgent.backend} / ${defaultAgent.model}` : '本体の既定担当は未取得'].filter(Boolean).join(' / ');
   } catch (error) {
     dot.className = 'status-dot disconnected';
     label.textContent = '接続確認に失敗しました';
@@ -651,7 +656,7 @@ window.addEventListener('storage', event => {
   if (event.key === 'xangi-theme' || event.key === null) applyTheme(storedTheme());
 });
 applyTheme(storedTheme());
-document.querySelector('#xangi-home').hidden = !/^\/api\/extensions\/[^/]+\/ui(?:\/|$)/.test(location.pathname);
+document.querySelector('#xangi-home').hidden = window.self !== window.top || !/^\/api\/extensions\/[^/]+\/ui(?:\/|$)/.test(location.pathname);
 document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || event.isComposing) return;
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {

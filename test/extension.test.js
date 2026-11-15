@@ -40,6 +40,14 @@ test('managed process serves data itself, authenticates UI, and persists across 
   assert.match(html, /<script type="module">/); assert.doesNotMatch(html, /src="app.js"|managed-test-secret/);
   assert.doesNotMatch(html, /import\s+\{[^}]+\}\s+from\s+['"]\.\//, 'embedded HTML must inline all local modules');
   assert.match(html, /function dateOrderWarning\(/);
+  assert.match(html, /TasksDescriptionEditor/);
+  assert.equal((await fetch(a.ready.baseUrl + '/editor.bundle.js')).status, 401);
+  const bundle = await a.request('/editor.bundle.js');
+  assert.equal(bundle.status, 200);
+  assert.match(bundle.headers.get('content-type'), /javascript/);
+  const licenses = await a.request('/editor-licenses.txt');
+  assert.equal(licenses.status, 200);
+  assert.match(await licenses.text(), /Tiptap GmbH/);
   const task = (await (await a.request('/api/tasks', 'POST', { title: 'Persisted task' })).json()).task;
   const exited = once(a.child, 'exit'); a.child.stdin.end(); assert.deepEqual(await exited, [0, null]);
   assert.equal(JSON.parse(await readFile(join(dir, 'tasks.json'), 'utf8'))[0].id, task.id);

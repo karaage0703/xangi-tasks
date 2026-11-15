@@ -100,7 +100,7 @@ app.server.listen(0,'127.0.0.1',()=>console.log(app.server.address().port));
                         page.locator('#close-categories').click()
                         pointer_move(page.get_by_role('button',name='調査を進めるの移動',exact=True),folder_target,touch=True,cancel=True)
                     else: task_source.drag_to(folder_target)
-                    assert len(writes)==before_writes  # Tasks cannot be assigned directly to folders.
+                    assert len(writes)==before_writes  # Task items cannot be assigned directly to folders.
                     if width==1280:
                         task_source.click()
                         page.locator('#detail-title').fill('')

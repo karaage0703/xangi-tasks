@@ -129,8 +129,6 @@ def calendar_sources(config_path, days, executable, run=subprocess.run):
                     text = json.dumps({'summary': event.get('summary', ''), 'description': event.get('description', ''),
                                        'location': event.get('location', ''), **dates,
                                        'allDay': 'date' in event['start'], 'selfResponse': response}, ensure_ascii=False)
-                    if len(text) > 60000:
-                        raise ValueError('calendar event too large; review manually')
                     yield {'sourceKey': key, 'kind': 'calendar', 'text': text, 'context': [],
                            'sourceUrl': event.get('htmlLink', ''), 'calendar': calendar,
                            'account': account, 'calendarLabel': source.get('label', calendar)}, None
@@ -158,9 +156,6 @@ def collect(args, state, call=api):
                         continue
                     from urllib.parse import urlencode
                     link = 'https://mail.google.com/mail/u/?' + urlencode({'authuser': entry['account']}) + '#all/' + (entry.get('threadId') or entry['id'])
-                    if len(message['body']) > 60000:
-                        errors.append({'sourceKey': key, 'error': 'mail too large; review manually'})
-                        continue
                     sources.append({'sourceKey': key, 'kind': 'mail', 'text': message['body'], 'subject': entry.get('subject'), 'sourceUrl': link, 'summary': entry.get('summary'), 'context': []})
                     if len(sources) >= args.limit:
                         break
@@ -199,9 +194,6 @@ def collect(args, state, call=api):
             for source in items:
                 if source['sourceKey'] in seen:
                     continue
-                if len(json.dumps(source, ensure_ascii=False)) > 60000:
-                    errors.append({'sourceKey': source['sourceKey'], 'error': 'conversation context exceeds 60000 chars; review manually'})
-                    continue
                 sources.append(source)
                 count += 1
                 if count >= args.limit:
@@ -217,7 +209,7 @@ def collect(args, state, call=api):
 def apply(args, state, call=api):
     capabilities = call(args.xangi, 'xangi-tasks', 'xangi-tasks.manage', '/api/inbox/capabilities')
     if capabilities.get('sourceKeys') is not True or capabilities.get('statusModel') != 2:
-        raise RuntimeError('Tasks source-key support is required before applying')
+        raise RuntimeError('xangi-tasks source-key support is required before applying')
     snapshot = json.loads(args.snapshot.read_text())
     decisions = json.loads(args.decisions.read_text())
     sources = {s['sourceKey']: s for s in snapshot['sources']}
@@ -254,7 +246,7 @@ def apply(args, state, call=api):
                 'sourceKey': key, 'sourceText': decision['evidence'], 'sourceUrl': source['sourceUrl'],
                 'sourceSpeaker': source['kind']})['task']
             if task.get('source', {}).get('key') != key:
-                raise RuntimeError('Tasks does not support idempotent source keys; stop before retrying')
+                raise RuntimeError('xangi-tasks does not support idempotent source keys; stop before retrying')
             outcome.update(taskId=task['id'], taskStatus=task['status'])
         state['seen'][key] = outcome
         save(args.state, state)  # One durable checkpoint per confirmed result.

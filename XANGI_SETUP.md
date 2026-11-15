@@ -4,6 +4,7 @@ Node.js 22以降とWeb Chatを有効にしたxangiが必要です。xangiがxang
 
 ```bash
 npm ci
+npm run build
 cp .env.example .env # 初回のみ。接続先と保存先を設定
 xangi extension link /absolute/path/to/xangi-tasks/xangi-extension.json
 xangi extension start xangi-tasks
@@ -16,7 +17,7 @@ xangiの「拡張」からxangi-tasksを開きます。拡張の停止・再起�
 
 起動スクリプトはアプリルートの`.env`を読みます。xangiから引き継いだ同名の環境変数が優先されます。`XANGI_URL`で依頼先を指定し、省略時はxangiから渡される接続先を使います。`XANGI_TOKEN`または`XANGI_EVEN_TERMINAL_TOKEN`には依頼先APIの認証情報が必要です。
 
-`XANGI_TASKS_DATA`でタスク保存先を指定します。既定はアプリルートの`.data/tasks.json`です。
+`XANGI_TASKS_DATA`でタスク保存先を指定します。省略時は`<workspace>/.xangi-tasks/instance-<instance-id>/tasks.json`へ保存します。想定外の状態は担当AIが保存先・環境・ログを調べて対応します。[保存先と更新](docs/usage.md#保存先と更新)を参照してください。
 
 拡張への認証キーはxangiが起動ごとに渡します。ブラウザにキーは渡さず、利用者の認証はxangiの入口で行います。xangi Web UIのアクセス制限を維持してください。
 

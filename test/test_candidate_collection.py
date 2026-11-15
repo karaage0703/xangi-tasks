@@ -112,6 +112,79 @@ class CollectionTests(unittest.TestCase):
                  'htmlLink': 'https://calendar.google.com/event/example'}
         return config, event
 
+    def test_long_mail_full_snapshot_tail_evidence_and_retry(self):
+        self.args.mail = True
+        tail = '末尾の依頼: 資料を送ってください。'
+        for length in (60000, 60001, 75208, 76220, 120001):
+            with self.subTest(length=length):
+                text = 'あ' * (length - len(tail)) + tail
+                sent = []
+                def api(*args, **kwargs):
+                    path = args[3]
+                    if path == '/api/important-feed':
+                        return {'entries': [{'uid': 'long', 'id': 'long', 'account': 'owner@example.test'}], 'nextOffset': None}
+                    if path == '/api/messages/long':
+                        return {'body': text, 'truncated': False, 'htmlOnly': False}
+                    if path == '/api/inbox':
+                        sent.append(kwargs['body'])
+                        return {'task': {'id': 'long-task', 'status': 'inbox', 'source': {'key': 'mail:long'}}}
+                    return self.fake(*args, **kwargs)
+                state = {'seen': {}}
+                snapshot = c.collect(self.args, state, api)
+                self.assertEqual(snapshot['errors'], [])
+                self.assertEqual(snapshot['sources'][0]['text'], text)
+                self.assertEqual(state, {'seen': {}})
+                c.save(self.args.snapshot, snapshot)
+                self.assertEqual(json.loads(self.args.snapshot.read_text())['sources'][0]['text'], text)
+                c.save(self.args.decisions, [{'sourceKey': 'mail:long', 'action': 'candidate',
+                    'title': '資料を送る', 'evidence': tail, 'reason': '本文末尾の未対応依頼'}])
+                c.apply(self.args, state, api)
+                c.apply(self.args, state, api)
+                self.assertEqual(len(sent), 1)
+                self.assertEqual(sent[0]['sourceText'], tail)
+                self.assertEqual(c.collect(self.args, state, api)['sources'], [])
+
+    def test_incomplete_long_mail_is_not_collected_or_acknowledged(self):
+        self.args.mail = True
+        for flags in ({'truncated': True}, {'htmlOnly': True}, {'body': ''}):
+            with self.subTest(flags=flags):
+                def api(*args, **kwargs):
+                    if args[3] == '/api/important-feed':
+                        return {'entries': [{'uid': 'long', 'id': 'long', 'account': 'owner@example.test'}], 'nextOffset': None}
+                    if args[3] == '/api/messages/long':
+                        return {'body': 'あ' * 76220, **flags}
+                    return self.fake(*args, **kwargs)
+                state = {'seen': {}}
+                out = c.collect(self.args, state, api)
+                self.assertEqual(out['sources'], [])
+                self.assertEqual(out['errors'], [{'sourceKey': 'mail:long', 'error': 'mail body incomplete; not acknowledged'}])
+                self.assertEqual(state, {'seen': {}})
+
+    def test_long_conversation_keeps_body_and_later_context(self):
+        path = self.write_conversation()
+        rows = [json.loads(line) for line in path.read_text().splitlines()]
+        body = 'あ' * 76220 + '末尾の依頼'
+        context = 'い' * 60001 + '後続の完了報告'
+        rows[1]['content'] = '[発言者: owner (ID: 123)]\n[現在時刻: today]\n' + body
+        rows[2]['content'] = {'result': context}
+        path.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+        self.args.sessions_dir = self.root
+        out = c.collect(self.args, {}, self.fake)
+        self.assertEqual(out['errors'], [])
+        self.assertEqual(len(out['sources']), 1)
+        self.assertEqual(out['sources'][0]['text'], body)
+        self.assertIn(context, out['sources'][0]['context'])
+
+    def test_long_calendar_keeps_complete_description(self):
+        config, event = self.calendar_fixture()
+        event['description'] = 'あ' * 76220 + '末尾の資料提出依頼'
+        out = list(c.calendar_sources(config, 14, 'gog', lambda *a, **kw:
+            SimpleNamespace(returncode=0, stdout=json.dumps({'events': [event]}))))
+        self.assertEqual(len(out), 1)
+        source, error = out[0]
+        self.assertIsNone(error)
+        self.assertEqual(json.loads(source['text'])['description'], event['description'])
+
     def test_calendar_jst_evidence_stable_key_and_recurrence(self):
         config, event = self.calendar_fixture(); commands = []
         def run(command, **kwargs):

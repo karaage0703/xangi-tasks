@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { XangiConnector } from '../src/xangi-connector.js';
 
+test('effective destination hides URL credentials and default agent comes from the host', async () => {
+  const connector = new XangiConnector({ baseUrl: 'https://user:secret@example.test/base?token=hidden', fetchImpl: async () => new Response(JSON.stringify({ backend: { value: { backend: 'codex', model: 'default-model', prompt: 'private' } } })) });
+  assert.equal(connector.destination, 'https://example.test');
+  assert.deepEqual(await connector.defaultAgent(), { backend: 'codex', model: 'default-model' });
+});
+
 test('delegates a task with bearer auth and reads the result', async () => {
   const requests = [];
   const fetchImpl = async (url, init = {}) => {
