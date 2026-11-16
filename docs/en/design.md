@@ -1,5 +1,25 @@
 # Design — xangi-tasks
 
+## Recommended UI typography and density
+
+At desktop widths of 901px and above, the detail title label uses 12px, while the title, target date and deadline inputs use 14px to match the editing text. Preserve control height, date input behavior and the existing mobile/tablet typography.
+
+The description and notes editors use 14px on desktop and 16px on mobile. Keep ordinary mobile inputs at 16px and touch targets around 44px.
+
+Use the host file browser as the default density reference, so lists and controls stay consistent across screens. Follow the host extension guide for names and icons without renaming existing IDs. These are recommended defaults for new and maintained UI; user preferences and task-specific presentation take priority. No exception approval or mandatory SDK is required.
+
+- List text, buttons, navigation and ordinary labels: 13px (`--xangi-font-ui`).
+- Supporting descriptions and dates: 12px (`--xangi-font-caption`); short counts and badges: 11px (`--xangi-font-micro`). Keep primary information readable.
+- Screen title: 18px (`--xangi-font-heading`); section heading: 16px (`--xangi-font-section`). Keep large promotional headings out of work areas.
+- Reading content, including articles, mail, Markdown and conversations: 16px with 1.6–1.75 line height (`--xangi-font-reading`). Content headings can use 24/18/16px.
+- Code and file editors: 13px monospace (`--xangi-font-code`); prominent chart values: 24px (`--xangi-font-metric`).
+
+Use the same Inter, system sans-serif and Japanese Noto Sans JP fallback order. Preserve browser text enlargement. Each extension owns the same named CSS variables and works standalone; the parent iframe must not force fonts onto every descendant. Preserve imported report HTML and external preview typography.
+
+Keep existing layout, functions and reading order. Use 4px spacing increments, quiet neutral surfaces, blue actions, thin borders and 6–8px radii where appropriate. Mobile inputs stay at 16px and touch targets around 44px independently of text size. Screen titles normally stay 18px on desktop and mobile; do not shrink long-form text solely for narrow screens.
+
+Check computed styles, long labels, scrolling, focus, input and back navigation at desktop/mobile widths in light/dark themes, both embedded and standalone. Report device conditions that remain unverified.
+
 ## Ownership and flow
 
 xangi-tasks owns tasks, collections and settings. xangi runs the requested work. An AI response finishing does not close a task: it remains Open until the user closes it.
