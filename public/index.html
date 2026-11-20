@@ -63,7 +63,6 @@
               <fieldset class="list-display-options"><legend>一覧に表示する項目</legend>
                 <label><input type="checkbox" data-display="targetDate" checked />目標日</label>
                 <label><input type="checkbox" data-display="deadline" />締め切り・確認状態</label>
-                <label><input type="checkbox" data-display="repeat" />繰り返し</label>
                 <label><input type="checkbox" data-display="status" />進捗・状態</label>
               </fieldset>
               <p>昇順は古い日付から、降順は新しい日付から。日付が未設定のタスクは末尾です。表示する項目と並び順はタブごとに、このブラウザに保存します。</p>
@@ -84,7 +83,7 @@
         <form id="quick-edit" class="quick-edit" aria-label="タスクをすぐ編集">
           <label class="date-row"><span>目標日</span><input name="targetDate" type="date" aria-describedby="quick-target-warning" /></label>
           <p id="quick-target-warning" class="date-order-warning" role="alert" hidden></p>
-          <details id="detail-repeat" class="repeat-disclosure"><summary>繰り返し（目標日）<span id="detail-repeat-value">なし</span></summary><fieldset class="repeat-fields"><legend>繰り返し（目標日）</legend>
+          <details id="detail-repeat" class="repeat-disclosure"><summary><span class="repeat-icon" aria-hidden="true">↻</span><span>繰り返し</span><span id="detail-repeat-value">設定する</span></summary><fieldset class="repeat-fields"><legend>繰り返し（目標日）</legend>
           <label>頻度<select name="repeatPreset"><option value="none">繰り返さない</option><option value="day">毎日</option><option value="weekdays">平日</option><option value="week">毎週</option><option value="month">毎月</option><option value="year">毎年</option><option value="custom">カスタム</option></select></label>
           <div class="repeat-custom" hidden>
             <label>間隔<input name="repeatInterval" type="number" min="1" max="999" value="1" /></label>

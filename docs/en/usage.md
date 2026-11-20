@@ -50,15 +50,6 @@ xangi tool extension_request --id xangi-tasks --capability xangi-tasks.manage \
 
 Candidate types are `action`, `waiting`, and `hold`. Candidates cannot be delegated until a human confirms them. External updates and outgoing messages require appropriate authorization.
 
-## Verification
-
-1. Create a test task and copy its link.
-2. Open the link and verify the selected task details.
-3. Retrieve and update its notes through the extension API.
-4. Reload and verify the saved notes, then complete the task.
-
-Task descriptions and notes each use an independent Tiptap editor with directly editable task lists, paragraphs, tables, links and code blocks. There is no preview/edit switch. Enter continues a list or creates a paragraph; Shift+Enter inserts a line break; Backspace exits an empty list item; Ctrl/⌘+Z undoes edits. Checkboxes save immediately; text saves on blur or Ctrl/⌘+Enter, with IME composition excluded. The stored format remains Markdown. Documents containing raw HTML or comments use a plain-source field to preserve them. Opening a task does not rewrite its source, but editing may normalize Markdown formatting. Image references are shown without fetching remote images. Failed saves keep the draft for retry. Checking a description item does not complete the overall task.
-
 ## Development
 
 ```bash
@@ -73,41 +64,35 @@ npm run build
 - Missing tasks: check the filter and `XANGI_TASKS_DATA`.
 - `failed`: inspect the error, fix the connection, and delegate again.
 
-[README](../../README.en.md) · [Design](design.md)
+## Task status and deletion
 
-Use the copy link button to reference a task in xangi. Task details do not fetch chat history.
+Review candidates in Inbox and accept them into Open. Manually created tasks also start in Open. Open contains unfinished tasks; Closed contains completed and dismissed tasks.
 
-Inbox is a separate sidebar destination above categories; category tabs are Open → Closed → All. Confirming a candidate moves it to Open; manually created tasks start there too. Open contains unfinished tasks regardless of execution state; Closed includes completed and dismissed tasks. Completion buttons use the label 完了. DELETE /api/tasks/:id soft-deletes a task after UI confirmation, retaining xangi conversation history. Running/delegating tasks cannot be deleted. Records retain deletedAt and are excluded from listing, lookup, and updates.
-
-To open xangi-tasks inside xangi, link xangi-extension.json and start the extension. xangi starts the application itself on an automatically allocated loopback port. Stopping the extension also stops the application and polling.
-
-Edit changes the title, description, and goal / external deadline. Dates do not trigger reminders or automatic execution. Copy the task link to use it in xangi.
+Delete a task using the trash icon in its details. Running or dispatching tasks cannot be deleted. Deleting a task retains its xangi conversation history.
 
 ## Goals and external deadlines
 
 A goal must be on or before its confirmed deadline. The same day is allowed. A later goal displays a red warning directly below the goal field, marks that field with a red border, and cannot be saved. Correcting the dates clears the warning. Dates are not compared when either date is unset.
 
-In lists, Open tasks show today’s goal in blue and missed goals in amber. Confirmed deadlines are amber on the due day and red from the following day. Text labels also identify each state. Closed tasks and Inbox candidates are not highlighted. These indicators apply when the date field is enabled for that tab and update after Japan midnight through regular polling (normally every four seconds).
+In lists, Open tasks show today’s goal in blue and missed goals in amber. Confirmed deadlines are amber on the due day and red from the following day. Text labels also identify each state. Closed tasks and Inbox candidates are not highlighted. These indicators apply when the date field is enabled for that tab.
 
 `targetDate` (YYYY-MM-DD) is a personal goal. Today’s goals uses the Japan calendar day. A missed goal asks you to review the plan; it never means an external deadline was missed.
 
 `deadlineAt` is a calendar date in YYYY-MM-DD format. `deadlineStatus` is `unknown` (unverified), `none` (verified absent), or `confirmed` (verified date). Entering a date confirms it; choosing none or unknown clears it. The UI, API, storage and Export/Import use date-only values. Timestamp values are rejected without conversion. Today and overdue comparisons use the Japan calendar day. Store source URLs or quotations in `deadlineEvidence`. Only a confirmed external deadline on an Open task triggers an overdue warning. There is no dedicated upcoming/overdue tab. Show deadlines through Display options in Open or All and sort by deadline.
 
-Recurring tasks advance the goal. External deadlines reset to unknown for the next occurrence rather than being inferred.
-
 Dates alone do not send reminders or execute tasks. AI morning summaries and reminders must read both dates, verification and evidence, plus the API `datePolicy` / `dateSummaries`, and distinguish goals from external deadlines. Delegation includes these meanings and evidence.
 
 ## Goal order and repeat
 
-The list shows only goals by default. Display options toggle goals, actual deadlines, recurrence and status. Choose the goal date, actual deadline or creation time in the compact sort field, then select ascending (oldest first) or descending (newest first) separately; undated tasks always come last. Display fields and sort choices persist separately for each tab (Open, Today, Closed and All) in this browser. Tabs without their own preferences inherit the previous shared settings. Categories use the preferences of the current tab. Tab counts reflect the selected category and exclude Inbox candidates. Open tasks with a goal before today in Japan ask you to review the plan.
+The list shows goal dates and recurrence frequency, such as “↻ 毎月” (monthly). Display options toggle goals, deadlines and progress.
 
-Choose daily, weekdays (Monday–Friday), weekly, monthly, yearly, or custom (every 1–999 days/weeks/months/years) when creating or editing. Weekly rules accept multiple weekdays; no selection uses the initial goal weekday. Enabling repeat without a goal sets the first goal to today in Japan.
+Choose goal date, deadline or creation time and ascending or descending order. Undated tasks come last; tasks with the same date use newest creation time first. Display and sort preferences are saved per tab in this browser.
+
+Select “↻ 繰り返し” below the goal in task details to choose daily, weekdays (Monday–Friday), weekly, monthly, yearly, or custom (every 1–999 days/weeks/months/years). Weekly rules accept multiple weekdays; no selection uses the initial goal weekday. Enabling repeat without a goal sets the first goal to today in Japan.
 
 Completing a task keeps its history and creates one next occurrence in Open / idle. Open tasks can also be completed manually. Title, description and repeat carry over; session and results do not. Nothing is automatically delegated or notified. Edit the next task to disable repeat, or delete it to stop. Editing a completed occurrence does not update its successor.
 
 Dates use Japan calendar days. Late completion skips missed dates and chooses the next scheduled date after both the goal and completion day. Weeks start Monday. Month ends clamp to the last valid day but retain the original anchor (Jan 31 → Feb 28 → Mar 31); leap years work similarly. Editing goal or repeat resets the anchor.
-
-Repeat options follow [Microsoft To Do help](https://support.microsoft.com/en-us/todo/add-due-dates-and-reminders-in-microsoft-to-do). Late-completion and month-end rules are the xangi-tasks behavior described above; full Microsoft compatibility or synchronization is not claimed.
 
 ### Initial view and task references
 
@@ -115,7 +100,7 @@ The selected category, folder expansion, view tab, and sort order are restored o
 
 The first visit opens Open; later visits restore the last view. Copy link adds `?task=<ID>` to the current xangi-tasks URL. Opening it shows task details. If clipboard access is unavailable, a manual copy prompt appears.
 
-Open tasks automatically show progress as a small read-only status label, without a selector or manual start/reset buttons: idle (not started), working (manual work), and review (awaiting review), among other states. POST /api/tasks/:id/execution/start sets working; /execution/reset sets idle. Both keep the task Open. POST /api/tasks/:id/open accepts Inbox or reopens Closed.
+Open tasks show progress such as idle, working or awaiting review. POST /api/tasks/:id/execution/start sets working; /execution/reset sets idle. Both keep the task Open. POST /api/tasks/:id/open accepts Inbox or reopens Closed.
 
 ## Authentication and storage
 
@@ -125,23 +110,25 @@ Set `XANGI_TASKS_DATA` to choose the data file. Relative paths are resolved from
 
 ## Edit content directly
 
-Open “Verification and evidence” in task details to edit deadline verification, deadline evidence and conversation evidence. It starts collapsed, while dates and category stay visible. Creation and advanced editing also collapse deadline verification and evidence initially. Conversation evidence uses the same neutral styling as other edit fields.
+Select a task name to edit its title, content, goal or deadline. Leave a field or press Ctrl/Cmd+Enter to save. Enter also saves the title.
 
-Conversation evidence can be added, edited or cleared in task details: quote, source URL and speaker. Deadline evidence also supports multiple lines. Both save on leaving the field; Enter inserts a newline and Ctrl/⌘+Enter saves. Changes replace stored values. Source URLs must use http/https. The collector key stays unchanged so recollection does not undo corrections or create duplicate candidates.
+Content supports task lists, tables, links and code blocks. Checkboxes save immediately. Enter continues a paragraph or list; Shift+Enter inserts a line break within an item; Backspace exits an empty list item; Ctrl/Cmd+Z undoes edits.
 
-Select a task name to open its details and edit its title or task content directly. Changes save on leaving a field; Enter also saves the title, and Ctrl/Cmd+Enter saves the content. Plain Enter inserts a newline in the content. IME confirmation does not submit. The content and notes fields start at 180px high and can be resized vertically. Edit the goal and deadline in their compact date rows, and expand goal-based recurrence directly below the goal to change its frequency, interval or weekdays. Move categories by dragging or using the move handle. To delete a task, use the trash icon at the bottom right of its details and confirm.
+Content is stored as Markdown. Raw HTML and comments use a plain-source field. Editing may normalize whitespace or list formatting. Image references are shown without fetching external images.
 
-The save status is visible. Failed drafts remain available for retry. Unsaved or saving changes keep the detail open until saving succeeds. Periodic refreshes do not overwrite active drafts. Internal conversation references stay hidden and are preserved on save.
+Open “Verification and evidence” to edit deadline verification, evidence, conversation text, source URL and speaker. Source URLs must use http/https.
+
+Save status appears in the form. Failed drafts remain available through Retry save. Pending edits must save before closing details or switching tasks.
 
 ## Personal notes
 
-Task details include a separate Notes field for ideas and work-in-progress notes, up to 10,000 characters with line breaks. Save by leaving the field or pressing Ctrl/Cmd+Enter. Failed drafts remain available for retry. Notes are not automatically sent to xangi and stay with the current occurrence rather than being copied to the next recurring task.
+Notes use the same editing controls as content and allow up to 10,000 characters. They stay with the current task rather than being sent to xangi or copied to the next recurring occurrence. Ask the AI to include notes when reviewing a task.
 
 ## Categories, folders and task details
 
 Create categories and one-level folder groups from the left sidebar. Use the adjacent ellipsis button to rename a category or move it to another folder. Each task belongs to one category and can be filtered by category and status. Existing tasks start uncategorized. Recurring tasks retain their category.
 
-On desktop, details open in a right panel while the task list remains interactive. Close with × or Escape. At widths of 900px or less, details use a full-screen modal and closing returns to the list. Pending edits must save before switching tasks. Categories and folders must be empty before deletion.
+On desktop, details open in a right panel while the task list remains interactive. Close with × or Escape. On mobile, details use a full-screen view and closing returns to the list. Pending edits must save before switching tasks. Categories and folders must be empty before deletion.
 
 Back up both the task JSON selected by `XANGI_TASKS_DATA` and its `.collections.json` sidecar. Also save the `.settings.json` sidecar.
 
@@ -151,7 +138,7 @@ Save an accessible Notion parent page URL once in Settings at the top of the scr
 
 The server reuses `~/.config/notion/api_key`, as used by xs-notion-manager. Run xangi-tasks as the same OS user, or set `XANGI_TASKS_NOTION_KEY_FILE`. Credentials are never returned to the browser or stored in tasks.
 
-An interrupted page creation is not retried automatically: check Notion and link the created page to avoid duplicates. Check Notion before retrying interrupted uploads too. Link copying tries the Clipboard API, then selection-based copy, and only then offers manual copying.
+An interrupted page creation is not retried automatically: check Notion and link the created page to avoid duplicates. Check Notion before retrying interrupted uploads too.
 
 Drag a task title or its ⠿ grip onto a category (or Uncategorized). Drag a category name or grip onto a folder heading; the “Move outside folders” target appears during category drags. Holding a task over a closed folder reveals its categories. On touch screens use the grip; the rest of the row retains normal scrolling. Valid targets have a highlighted border and background. Clicking or keyboard-activating a grip opens the existing category/folder selector. Save failures are reported and server state is reloaded.
 
@@ -165,9 +152,9 @@ Task details offer delegation with a link to its xangi conversation. Candidates 
 
 For a task that is not currently being dispatched or running, choose an agent or Project in the delegation dialog. A Project uses its configured agent/team; a Project linked to Discord or Slack creates a channel thread and synchronizes requests and replies. The form identifies the destination before sending. Saving a default does not execute a task and applies across devices.
 
-After acceptance, the conversation opens in a new tab (or window, depending on browser settings), keeping the original task page open. A blank tab appears while submitting and closes if the request fails. If your browser blocks the popup, use “xangiの会話を開く” in task details.
+After acceptance, the conversation opens in a new tab (or window, depending on browser settings), keeping the original task page open. If your browser blocks the popup, use “xangiの会話を開く” in task details.
 
-Open conversations are reused. Close the conversation in xangi before requesting a new one or changing its destination. Completing a task does not close its new conversation. Results live in xangi; task details provide a conversation link instead of a separate results panel. Personal notes are not sent automatically.
+Open conversations are reused. Close the conversation in xangi before requesting a new one or changing its destination. Completing a task does not close its new conversation. Results are available through the conversation link. Personal notes are not sent automatically.
 
 `GET /api/projects` lists destinations. Settings and delegation accept `projectId` and `agentId`; omission uses the saved default, an empty project means Web only, and a selected project controls the agent. Settings persist in the `.settings.json` sidecar. Back it up alongside task and collection data.
 
@@ -211,8 +198,6 @@ Run CLI regression tests with `npm run test:notion-cli` (requires uv).
 
 On desktop (901px and wider), drag the boundaries between categories, list and details. The list fills the remaining space. Focus a separator with Tab and use arrow keys (Shift for larger steps), Home/End, or double-click to reset. Widths persist per browser and are constrained on smaller windows to keep the list usable. Mobile retains its category drawer and full-screen details.
 
-Task list and detail API responses include notes in `notes`, so AI can retrieve them when asked to check a task. Notes are not automatically included in the “Delegate to xangi” message.
-
 ## README screenshots
 
 From the repository root, run the following to capture the real desktop UI (1440×960px) and mobile UI (390×844px) as `docs/images/tasks-desktop.png` and `docs/images/tasks-mobile.png`.
@@ -224,18 +209,14 @@ uv run --with playwright python scripts/readme-screenshots.py
 
 Chromium defaults to `/snap/bin/chromium`. Set `BROWSER_EXECUTABLE` to use another installation. Capture uses uv and Playwright without adding application dependencies. The capture environment needs the `ja_JP.UTF-8` locale.
 
-Date input display order depends on the browser language and locale. The script also fixes Chromium's startup language and process locale to Japanese, displaying dates in year/month/day order, such as `2030/04/15`. API and stored values use `2030-04-15`.
-
-The script seeds fictional data in a temporary store and uses a local server with a mock connector. Both browser and server dates are fixed to April 15, 2030, with Japanese UI, Asia/Tokyo time, and a light theme. No real data or credentials are used, and no xangi, Notion, or AI services are contacted. External browser requests are blocked. Task counts, desktop details, horizontal overflow, and JavaScript errors are checked before capture.
+Capture uses fictional data and a fixed date. It does not use real data or contact external services.
 
 ## Persistent storage and updates
 
-New installations store workspace data separately for each instance. Explicit XANGI_TASKS_DATA settings retain their meaning; relative paths remain relative to the app root. The destination is explicit or uses this default.
+Before a host-managed update, set `XANGI_TASKS_DATA` in the parent instance to the absolute path of an existing task file outside the source directory. Data is not moved or deleted automatically.
 
-If saved tasks are missing or another unexpected state occurs, the responsible AI inspects the actual destination, environment variables, logs, and stored data. Preserve data and correct the destination as needed, then verify startup, doctor, and retrieval of tasks, categories, and notes. Configure the update destination in the parent instance environment.
+The connection normally uses the URL supplied by the host. Set `XANGI_URL` to select another instance. Connection status shows the destination and host default backend/model.
 
-Host-managed preparation requires an existing persistent file outside source before npm ci/build. Missing or unsafe settings fail preparation and permit host rollback. No data is moved or deleted automatically.
+Required host features: managed HTTP schema 2, sessions/chat, agents, runtime-settings, and repository-managed updates.
 
-The parent URL is the normal destination; explicit XANGI_URL selects another instance. Connection status displays the effective origin and host default backend/model, or reports that the default could not be obtained. Embedded screens omit duplicate Home navigation.
-
-Required host features: managed HTTP schema 2, sessions/chat, agents, runtime-settings, and repository-managed updates. Verification against an actual host version has not been performed. Record the tested host version and remaining unknowns after runtime integration; mock tests are not runtime verification.
+[README](../../README.en.md) · [Design](design.md)
