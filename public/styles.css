@@ -56,6 +56,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 #task-form { display: grid; gap: 14px; padding-top: 18px; }
 #task-form label { display: grid; gap: 6px; color: var(--ink-secondary); font-size: var(--xangi-font-ui); font-weight: 600; }
 input, textarea, #delegate-form select { width: 100%; min-height: 44px; border: 1px solid var(--border); border-radius: 6px; padding: 9px 10px; color: var(--ink); background: var(--surface); outline: none; }
+/* Allow native date controls to shrink inside forms on iOS Safari. */
+input[type="date"] { min-width: 0; max-width: 100%; appearance: none; text-align: left; }
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 textarea { min-height: 96px; resize: vertical; line-height: 1.55; }
 input::placeholder, textarea::placeholder { color: var(--ink-subtle); }
 input:focus, textarea:focus, #delegate-form select:focus { border-color: var(--accent); }
@@ -218,7 +221,8 @@ body:has(.create-dialog[open]) { overflow: hidden; }
 .task-card[data-execution-status="failed"] .task-check::before { border-style: dotted; }
 .task-open { min-width: 0; flex: 1; min-height: 44px; border: 0; border-radius: 4px; background: transparent; padding: 4px 6px 4px 0; display: flex; justify-content: space-between; gap: 12px; text-align: left; white-space: normal; }
 .task-open h3 { min-width: 0; margin: 0; font-size: var(--xangi-font-ui); font-weight: 500; line-height: 1.4; }
-.row-meta { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; color: var(--ink-muted); font-size: var(--xangi-font-caption); }
+.row-meta { display: flex; flex: 0 1 auto; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--ink-muted); font-size: var(--xangi-font-caption); }
+.row-repeat { color: var(--accent-ink); font-weight: 600; overflow-wrap: anywhere; }
 .row-due.goal-today { color: #245f9e; font-weight: 600; }
 .row-due.goal-passed, .row-due.deadline-today { color: #915c0b; font-weight: 600; }
 :root[data-theme="dark"] .row-due.goal-today { color: #93c5fd; }
@@ -371,8 +375,6 @@ body[data-drag-kind="task"] [data-drop-kind="category"], body[data-drag-kind="ca
   padding: 8px 10px; font-size: var(--detail-control-size); font-weight: 400; line-height: 1.5;
   border: 1px solid var(--border); border-radius: 6px; color: var(--ink); background: var(--surface);
 }
-#task-dialog input[type="date"] { appearance: none; text-align: left; }
-#task-dialog input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 #task-dialog textarea { font-size: var(--detail-control-size); }
 #task-dialog .button, #task-dialog .icon-button { min-height: var(--detail-control-height); font-size: 14px; line-height: 1.5; }
 #task-dialog .icon-button { width: var(--detail-control-height); height: var(--detail-control-height); font-size: 20px; }
@@ -423,10 +425,14 @@ body.resizing-panes { cursor: col-resize; user-select: none; }
 
 /* Recurrence edits sit beside the goal they advance. */
 .repeat-disclosure { border-bottom: 1px solid var(--hairline); }
-.repeat-disclosure summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 48px; cursor: pointer; color: var(--ink-secondary); font-size: var(--xangi-font-caption); }
-.repeat-disclosure summary::before { content: '▸'; }
-.repeat-disclosure[open] summary::before { content: '▾'; }
-#detail-repeat-value { margin-left: auto; color: var(--ink); }
+.repeat-disclosure summary { display: grid; grid-template-columns: 20px auto minmax(0, 1fr) 12px; align-items: center; gap: 8px; min-height: 48px; padding: 8px 4px; cursor: pointer; color: var(--ink-secondary); font-size: var(--xangi-font-ui); list-style: none; }
+.repeat-disclosure summary::-webkit-details-marker { display: none; }
+.repeat-disclosure summary::after { content: '▸'; text-align: center; }
+.repeat-disclosure[open] summary::after { content: '▾'; }
+.repeat-disclosure summary:hover { background: var(--hover); }
+.repeat-icon { font-size: 20px; line-height: 1; text-align: center; }
+#detail-repeat-value { min-width: 0; text-align: right; overflow-wrap: anywhere; color: var(--ink); }
+.repeat-disclosure[data-active="true"] :is(.repeat-icon, #detail-repeat-value) { color: var(--accent-ink); font-weight: 600; }
 #task-dialog .repeat-fields { margin: 0; padding: 8px; min-width: 0; }
 #task-dialog .repeat-fields label { display: grid; }
 #task-dialog .repeat-weekdays label { display: inline-flex; align-items: center; gap: 4px; }

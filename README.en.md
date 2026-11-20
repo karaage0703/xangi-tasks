@@ -14,7 +14,7 @@ Requires Node.js 22+ and xangi with Web Chat enabled.
 
 ## Documentation
 
-- [Usage, configuration, and verification](docs/en/usage.md)
+- [Usage and configuration](docs/en/usage.md)
 - [Design and API](docs/en/design.md)
 - [Notion linking CLI](docs/en/usage.md#notion-linking-cli)
 

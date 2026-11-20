@@ -29,7 +29,7 @@ const state = { collections: { folders: [], categories: [] }, category: readPref
 const sortLabels = { 'created-asc': '追加日時（昇順）', 'created-desc': '追加日時（降順）', 'target-asc': '目標日（昇順）', 'target-desc': '目標日（降順）', 'deadline-asc': '締め切り（昇順）', 'deadline-desc': '締め切り（降順）' };
 if (state.sort === 'created') state.sort = 'created-desc';
 if (!Object.hasOwn(sortLabels, state.sort)) state.sort = 'target-asc';
-state.display = Object.fromEntries(['targetDate', 'deadline', 'repeat', 'status'].map(key => [key, readPreference(`tasks-show-${key}`, key === 'targetDate' ? 'true' : 'false') === 'true']));
+state.display = Object.fromEntries(['targetDate', 'deadline', 'status'].map(key => [key, readPreference(`tasks-show-${key}`, key === 'targetDate' ? 'true' : 'false') === 'true']));
 // Keep the old shared preferences as defaults until each tab has its own choice.
 const sharedOptions = { sort: state.sort, display: { ...state.display } };
 const viewOptions = new Map();
@@ -146,9 +146,11 @@ function renderTask(task, today) {
   const deadlineLabel = task.deadlineStatus === 'confirmed' ? `${dates.deadlineOverdue ? '締切超過' : dates.deadlineToday ? '今日が締切' : dates.deadlineSoon ? '締切間近' : '締切'} ${(task.deadlineAt || '')}` : task.deadlineStatus === 'none' ? '締切なし' : '締切未確認';
   const deadlineClass = dates.deadlineOverdue ? 'overdue' : dates.deadlineToday ? 'deadline-today' : '';
   if (state.display.deadline) meta.append(element('span', `row-due ${deadlineClass}`.trim(), deadlineLabel));
-  if (state.display.repeat && task.repeat) {
-    const repeat = element('span', 'row-repeat', '↻');
+  if (task.repeat) {
+    const repeat = element('span', 'row-repeat', `↻ ${repeatLabel(task.repeat).replace('繰り返し: ', '')}`);
+    repeat.id = `repeat-${task.id}`;
     repeat.setAttribute('aria-label', repeatLabel(task.repeat));
+    open.setAttribute('aria-describedby', repeat.id);
     meta.append(repeat);
   }
   if (task.error || task.titleSyncError) meta.append(element('span', 'row-warning', '要確認'));
@@ -716,12 +718,17 @@ document.querySelector('#edit-form').addEventListener('submit', async (event) =>
 function repeatLabel(rule) {
   if (rule.unit === 'weekdays') return '繰り返し: 平日';
   const units = {day:'日', week:'週', month:'か月', year:'年'};
+  const presets = {day:'毎日', week:'毎週', month:'毎月', year:'毎年'};
   const weekdays = ['日','月','火','水','木','金','土'];
-  return `繰り返し: ${rule.interval}${units[rule.unit]}ごと${rule.daysOfWeek?.length ? '（'+rule.daysOfWeek.map(d=>weekdays[d]).join('・')+'）' : ''}`;
+  const frequency = rule.interval === 1 ? presets[rule.unit] : `${rule.interval}${units[rule.unit]}ごと`;
+  return `繰り返し: ${frequency}${rule.daysOfWeek?.length ? '（'+rule.daysOfWeek.map(d=>weekdays[d]).join('・')+'）' : ''}`;
 }
 function updateRepeatForm(form) {
   const preset = form.elements.repeatPreset.value;
-  if (form.id === 'quick-edit') document.querySelector('#detail-repeat-value').textContent = preset === 'none' ? 'なし' : repeatLabel(readRepeat(form)).replace('繰り返し: ', '');
+  if (form.id === 'quick-edit') {
+    document.querySelector('#detail-repeat-value').textContent = preset === 'none' ? '設定する' : repeatLabel(readRepeat(form)).replace('繰り返し: ', '');
+    document.querySelector('#detail-repeat').dataset.active = String(preset !== 'none');
+  }
   form.querySelector('.repeat-custom').hidden = preset !== 'custom';
   form.elements.repeatInterval.disabled = preset !== 'custom';
   form.querySelector('.repeat-weekdays').hidden = !(preset === 'week' || (preset === 'custom' && form.elements.repeatUnit.value === 'week'));

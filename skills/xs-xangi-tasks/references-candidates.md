@@ -56,7 +56,7 @@ sources.jsonを取得元ごとに読み、sourcesのtext・contextとexistingTas
 
 ```json
 [
-  {"sourceKey":"取得したID","action":"candidate","title":"発表概要を送る","evidence":"本文の完全一致の引用（5文字以上）","reason":"未対応の具体的な依頼。元メールを確認して承認する"},
+  {"sourceKey":"取得したID","action":"candidate","title":"発表概要を送る","evidence":"本文の完全一致の引用（5文字以上）","reason":"- 発表概要を送る。\n- 締切：元メールの日付を確認して記入。\n- 元メール：確認済みURL"},
   {"sourceKey":"別の取得したID","action":"ignore","reason":"後続の返答で完了済み"},
   {"sourceKey":"さらに別のID","action":"defer","reason":"文脈不足で判断を保留"}
 ]
@@ -69,6 +69,8 @@ uv run python [SKILL_DIR]/scripts/collect_candidates.py apply \
 ```
 
 candidateだけを候補APIへ送る。ignoreは収集済みとして保存、deferは次回再確認する。新しいsourceKeyを使って再送を回避しない。同じ出典は採用・却下・削除済みでも復活しない。登録成功後に状態を保存するため、途中失敗は同じ判断ファイルで再開できる。xangi-tasksの状態モデル2の対応確認に失敗したら更新が必要で、旧APIへ迂回しない。
+
+`apply`は判断ファイルの`reason`をそのままタスク本文に保存する。candidateの`reason`はSKILL.mdの「本文・期限・根拠の書き方」に従う短い箇条書きとし、長い採否判断は別の作業記録に残す。`apply`は締切項目を送らないため、登録後に返却されたtaskIdへPUTして分かる期限・引用・元URLを補完し、再取得で確認する。推定日だけの場合は仮の`targetDate`として区別する。
 
 ## Step 4: 結果と定期実行
 
