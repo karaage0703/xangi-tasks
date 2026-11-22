@@ -21,8 +21,8 @@ let taskRows = new Map();
 let detailRequest = 0;
 let detailLoadingId = null;
 let quickTaskId = null;
-let quickDirty = new Set();
-let quickSaving = false;
+const quickDrafts = new Map();
+let quickSaveRevision = 0;
 let dragging = null;
 let moving = false;
 const state = { collections: { folders: [], categories: [] }, category: readPreference('tasks-category'), tasks: [], filter: 'open', sort: readPreference('tasks-sort', 'target-asc'), busy: new Set(), selectedTaskId: null, detail: null };
@@ -237,28 +237,57 @@ function renderDetail() {
 
 function renderQuickEdit(task) {
   const changedTask = quickTaskId !== task.id;
+  const draft = quickDrafts.get(task.id);
   if (changedTask) {
     quickTaskId = task.id;
     document.querySelector('#detail-evidence').open = false;
     document.querySelector('#detail-repeat').open = false;
-    quickDirty = new Set();
-    document.querySelector('#quick-save-status').textContent = '変更すると保存します';
-    document.querySelector('#quick-retry').hidden = true;
+    renderQuickStatus(draft);
   }
   for (const [name, value] of [['title', task.title], ['description', visibleDescription(task.description)], ['notes', task.notes || ''], ['targetDate', task.targetDate || ''], ['deadlineAt', (task.deadlineAt || '')], ['deadlineStatus', task.deadlineStatus || 'unknown'], ['deadlineEvidence', task.deadlineEvidence || ''], ['sourceText', task.source?.text || ''], ['sourceUrl', task.source?.url || ''], ['sourceSpeaker', task.source?.speaker || '']]) {
     const input = document.querySelector('#quick-edit').elements.namedItem(name);
-    if (changedTask || (!quickDirty.has(name) && document.activeElement !== input)) input.value = value;
+    if (changedTask) input.value = draft?.edits.get(name) ?? value;
+    else if (!draft?.edits.has(name) && document.activeElement !== input && input.value !== value) input.value = value;
   }
   const quickForm = document.querySelector('#quick-edit');
   const shownRepeat = readRepeat(quickForm);
   if (shownRepeat) shownRepeat.daysOfWeek.sort();
   // Keep an equivalent custom selection open while its first interval is being edited.
-  if (changedTask || (!quickDirty.has('repeat') && JSON.stringify(shownRepeat) !== JSON.stringify(task.repeat))) fillRepeat(quickForm, task.repeat);
-  for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, #quick-edit textarea, [form="quick-edit"]')) input.disabled = quickSaving || state.busy.has(task.id);
-  if (!quickSaving && !state.busy.has(task.id)) updateRepeatForm(document.querySelector('#quick-edit'));
-  updateMarkdownEditor(document.querySelector('#detail-description'), document.querySelector('#description-checklist'), { reset: changedTask, disabled: quickSaving || state.busy.has(task.id), onCommit: () => void saveQuickEdit() });
-  updateMarkdownEditor(document.querySelector('#detail-notes'), document.querySelector('#notes-editor'), { reset: changedTask, disabled: quickSaving || state.busy.has(task.id), onCommit: () => void saveQuickEdit(), labelId: 'notes-label', describedBy: 'notes-hint quick-save-status' });
+  if (changedTask || (!draft?.edits.has('repeat') && JSON.stringify(shownRepeat) !== JSON.stringify(task.repeat))) {
+    fillRepeat(quickForm, draft?.edits.has('repeat') ? draft.edits.get('repeat') : task.repeat);
+  }
+  const disabled = state.busy.has(task.id);
+  for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, #quick-edit textarea, [form="quick-edit"]')) input.disabled = disabled;
+  if (!disabled) updateRepeatForm(quickForm);
+  updateMarkdownEditor(document.querySelector('#detail-description'), document.querySelector('#description-checklist'), { reset: changedTask, disabled, onCommit: () => void saveQuickEdit() });
+  updateMarkdownEditor(document.querySelector('#detail-notes'), document.querySelector('#notes-editor'), { reset: changedTask, disabled, onCommit: () => void saveQuickEdit(), labelId: 'notes-label', describedBy: 'notes-hint quick-save-status' });
   showDateOrderWarning(quickForm);
+}
+
+function renderQuickStatus(draft, idle = '変更すると保存します') {
+  const message = draft?.saving ? '保存中…' : draft?.error || (draft?.edits.size ? '編集中・入力欄を離れると保存します' : idle);
+  const status = document.querySelector('#quick-save-status');
+  if (status.textContent !== message) status.textContent = message;
+  document.querySelector('#quick-retry').hidden = !draft?.error || draft.saving;
+}
+
+function recordQuickEdit(input) {
+  const task = state.detail?.task;
+  if (!task || task.id !== state.selectedTaskId) return;
+  let draft = quickDrafts.get(task.id);
+  if (!draft) {
+    draft = { edits: new Map(), task, saving: false, queued: false, error: '' };
+    quickDrafts.set(task.id, draft);
+  }
+  const form = document.querySelector('#quick-edit');
+  const repeat = input.closest('.repeat-fields');
+  draft.edits.set(repeat ? 'repeat' : input.name, repeat ? readRepeat(form) : input.value);
+  draft.error = '';
+  renderQuickStatus(draft);
+}
+
+function quickEditorComposing() {
+  return [...document.querySelectorAll('.task-markdown-editor')].some(editor => editor.editorComposing);
 }
 
 function showDateOrderWarning(form) {
@@ -286,60 +315,65 @@ function visibleDescription(value = '') {
 }
 
 async function saveQuickEdit() {
-  if (quickSaving || !state.selectedTaskId || !quickDirty.size || [...document.querySelectorAll('.task-markdown-editor')].some(editor => editor.editorComposing)) return;
-  const id = state.selectedTaskId;
-  const payload = {};
-  for (const name of quickDirty) {
-    if (name === 'repeat') { payload.repeat = readRepeat(document.querySelector('#quick-edit')); continue; }
-    const value = document.querySelector('#quick-edit').elements.namedItem(name).value;
-    payload[name] = value;
-  }
+  if (quickEditorComposing()) return;
+  const draft = quickDrafts.get(state.selectedTaskId);
+  if (!draft || !draft.edits.size) return;
+  draft.task = state.detail.task;
+  await saveQuickDraft(draft);
+}
+
+async function saveQuickDraft(draft) {
+  if (draft.saving) { draft.queued = true; return; }
+  const { id } = draft.task;
+  const edits = new Map(draft.edits);
+  const payload = Object.fromEntries(edits);
   if (payload.deadlineAt) payload.deadlineStatus = 'confirmed';
   if (payload.deadlineStatus && payload.deadlineStatus !== 'confirmed') payload.deadlineAt = '';
   if (payload.deadlineAt === '' && !payload.deadlineStatus) payload.deadlineStatus = 'unknown';
-  if ('title' in payload && !payload.title.trim()) {
-    document.querySelector('#quick-save-status').textContent = 'タイトルを入力してください';
-    document.querySelector('#quick-retry').hidden = false;
-    return;
-  }
   if ('description' in payload) {
-    const references = state.detail.task.description.match(/\bconversation=discord:\d+\b/g) || [];
+    const references = draft.task.description.match(/\bconversation=discord:\d+\b/g) || [];
     if (references.length) payload.description = [payload.description, ...references].filter(Boolean).join('\n');
   }
-  const warning = dateOrderWarning({ ...state.detail.task, ...payload });
-  if (warning) {
-    showDateOrderWarning(document.querySelector('#quick-edit'));
-    document.querySelector('#quick-save-status').textContent = '保存していません';
-    document.querySelector('#quick-retry').hidden = false;
+  const warning = dateOrderWarning({ ...draft.task, ...payload });
+  draft.error = 'title' in payload && !payload.title.trim() ? 'タイトルを入力してください' : warning;
+  if (draft.error) {
+    if (state.selectedTaskId === id) renderQuickStatus(draft);
+    else showToast(`「${draft.task.title}」の変更を保存できませんでした: ${draft.error}`);
     return;
   }
-  quickSaving = true;
-  renderQuickEdit(state.detail.task);
-  const status = document.querySelector('#quick-save-status');
-  status.textContent = '保存中…';
+  draft.saving = true;
+  if (state.selectedTaskId === id) renderQuickStatus(draft);
   try {
     const { task } = await api(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    // The mutation returns the saved task; avoid two extra round trips before unlocking inputs.
-    detailRequest++;
-    detailLoadingId = null;
+    draft.task = task;
+    for (const [name, value] of edits) {
+      if (draft.edits.get(name) === value) draft.edits.delete(name);
+    }
+    quickSaveRevision++;
     state.tasks = state.tasks.map(item => item.id === id ? task : item);
     if (state.selectedTaskId === id) {
-      quickDirty.clear();
-      status.textContent = '保存しました';
-      document.querySelector('#quick-retry').hidden = true;
+      detailRequest++;
+      detailLoadingId = null;
       state.detail = { ...state.detail, task };
       renderDetail();
     }
     render();
   } catch (error) {
-    if (state.selectedTaskId === id) {
-      status.textContent = `保存できませんでした: ${error.message}`;
-      document.querySelector('#quick-retry').hidden = false;
-    }
+    draft.error = `保存できませんでした: ${error.message}`;
+    if (state.selectedTaskId !== id) showToast(`「${draft.task.title}」の変更を${draft.error}`);
   } finally {
-    quickSaving = false;
-    if (state.detail) renderQuickEdit(state.detail.task);
+    draft.saving = false;
+    const queued = draft.queued;
+    draft.queued = false;
+    if (!draft.edits.size) quickDrafts.delete(id);
+    if (state.selectedTaskId === id) renderQuickStatus(draft, '保存しました');
+    if (queued && !draft.error && draft.edits.size) await saveQuickDraft(draft);
   }
+}
+
+function saveBeforeLeavingQuickEdit() {
+  // Failed edits are kept with the task and can be retried after reopening it.
+  if (!quickDrafts.get(state.selectedTaskId)?.error) void saveQuickEdit();
 }
 
 async function loadTaskDetail({ quiet = false } = {}) {
@@ -370,9 +404,8 @@ async function loadTaskDetail({ quiet = false } = {}) {
 async function openTask(id) {
   if (state.selectedTaskId === id && dialog.open) return;
   if (state.selectedTaskId && state.selectedTaskId !== id) {
-    if (quickSaving) { showToast('保存が完了してから切り替えてください'); return; }
-    await saveQuickEdit();
-    if (quickDirty.size) return;
+    if (quickEditorComposing()) return;
+    saveBeforeLeavingQuickEdit();
   }
   quickTaskId = null;
   state.selectedTaskId = id;
@@ -462,9 +495,10 @@ function render() {
 async function loadTasks({ quiet = false } = {}) {
   if (dragging || moving || (quiet && tasksLoading)) return;
   tasksLoading = true;
+  const revision = quickSaveRevision;
   try {
     const [taskData, collections] = await Promise.all([api('/api/tasks'), api('/api/collections')]);
-    if (dragging || moving) return;
+    if (dragging || moving || revision !== quickSaveRevision) return;
     const tasks = taskData.tasks;
     const collectionsChanged = JSON.stringify(collections) !== JSON.stringify(state.collections);
     state.collections = collections;
@@ -546,6 +580,10 @@ async function handleTaskAction(event) {
   const button = event.target.closest('button[data-action]');
   if (!button || button.disabled) return;
   const { action, id } = button.dataset;
+  if (quickDrafts.has(id) && !['show', 'copy-link', 'delegate'].includes(action)) {
+    showToast('タスク詳細で変更を保存してから再操作してください');
+    return;
+  }
   if (action === 'edit') {
     const task = state.tasks.find(t => t.id === id);
     const form = document.querySelector('#edit-form');
@@ -605,20 +643,19 @@ document.querySelector('#detail-actions').addEventListener('click', handleTaskAc
 document.querySelector('#detail-delete-actions').addEventListener('click', handleTaskAction);
 
 function closeDetail() {
-  if (quickSaving || quickDirty.size) {
-    if (!quickSaving) void saveQuickEdit();
-    showToast('保存が完了してから閉じてください');
-    return;
-  }
+  if (quickEditorComposing()) return;
+  saveBeforeLeavingQuickEdit();
   dialog.close();
 }
 document.querySelector('#close-detail').addEventListener('click', closeDetail);
 dialog.addEventListener('cancel', event => { event.preventDefault(); closeDetail(); });
 dialog.addEventListener('close', () => {
   if (panelResizeClosures) { panelResizeClosures--; return; }
+  if (dialog.open) return;
   const opener = [...grid.querySelectorAll('.task-open')].find(button => button.dataset.id === state.selectedTaskId);
   (opener || document.querySelector('#refresh')).focus({ preventScroll: true });
   state.selectedTaskId = null;
+  quickTaskId = null;
   detailRequest++;
   detailLoadingId = null;
   state.detail = null;
@@ -743,7 +780,7 @@ function readRepeat(form) {
 function fillRepeat(form, rule) {
   form.elements.repeatPreset.value = !rule ? 'none' : rule.interval === 1 ? rule.unit : 'custom';
   form.elements.repeatUnit.value = rule?.unit === 'weekdays' ? 'day' : rule?.unit || 'day';
-  form.elements.repeatInterval.value = rule?.interval || 1;
+  form.elements.repeatInterval.value = rule?.interval ?? 1;
   form.querySelectorAll('[name=repeatDay]').forEach(el=>el.checked = (rule?.daysOfWeek || []).includes(Number(el.value)));
   updateRepeatForm(form);
 }
@@ -778,21 +815,18 @@ for (const form of [document.querySelector('#task-form'), document.querySelector
   form.deadlineStatus.addEventListener('change', () => {
     if (form.deadlineStatus.value !== 'confirmed') {
       form.deadlineAt.value = '';
-      if (form.id === 'quick-edit') quickDirty.add('deadlineAt');
+      if (form.id === 'quick-edit') recordQuickEdit(form.deadlineAt);
     }
     showDateOrderWarning(form);
   });
   form.deadlineAt.addEventListener('change', () => {
     form.deadlineStatus.value = form.deadlineAt.value ? 'confirmed' : 'unknown';
-    if (form.id === 'quick-edit') quickDirty.add('deadlineStatus');
+    if (form.id === 'quick-edit') recordQuickEdit(form.deadlineStatus);
   });
 }
 
 for (const input of document.querySelectorAll('#quick-edit input, #quick-edit select, #quick-edit textarea, [form="quick-edit"]')) {
-  input.addEventListener('input', () => {
-    quickDirty.add(input.closest('.repeat-fields') ? 'repeat' : input.name);
-    document.querySelector('#quick-save-status').textContent = '編集中・入力欄を離れると保存します';
-  });
+  input.addEventListener('input', () => recordQuickEdit(input));
   input.addEventListener('keydown', event => {
     if (event.isComposing || event.keyCode === 229) return;
     if (event.key === 'Enter' && (input.tagName !== 'TEXTAREA' || event.ctrlKey || event.metaKey)) {
@@ -801,7 +835,7 @@ for (const input of document.querySelectorAll('#quick-edit input, #quick-edit se
       void saveQuickEdit();
     }
   });
-  input.addEventListener('change', () => { quickDirty.add(input.closest('.repeat-fields') ? 'repeat' : input.name); void saveQuickEdit(); });
+  input.addEventListener('change', () => { recordQuickEdit(input); void saveQuickEdit(); });
 }
 document.querySelector('#quick-edit').addEventListener('submit', event => {
   event.preventDefault();
@@ -980,7 +1014,7 @@ document.addEventListener('keydown', event => {
 });
 
 function startMove(kind, id) {
-  if (moving || quickSaving || quickDirty.size || state.busy.has(id)) {
+  if (moving || (kind === 'task' && quickDrafts.has(id)) || state.busy.has(id)) {
     showToast('編集の保存が完了してから移動してください'); return false;
   }
   dragging = { kind, id };
@@ -1031,7 +1065,7 @@ function makeDropTarget(node, kind, id) {
   });
 }
 async function applyMove(source, kind, id) {
-  if (!source || moving || quickSaving || quickDirty.size) return;
+  if (!source || moving || (source.kind === 'task' && quickDrafts.has(source.id))) return;
   const taskMove = source.kind === 'task' && kind === 'category';
   if (!taskMove && !(source.kind === 'category' && kind === 'folder')) return;
   const item = taskMove ? state.tasks.find(t => t.id === source.id) : state.collections.categories.find(c => c.id === source.id);
@@ -1134,9 +1168,12 @@ function delegationError(message) {
 async function openDelegation(id) {
   if (state.busy.has(id)) return;
   if (state.selectedTaskId === id) {
-    if (quickSaving) { showToast('保存が完了してから依頼してください'); return; }
-    await saveQuickEdit();
-    if (quickDirty.size) return;
+    if (!quickDrafts.get(id)?.saving) await saveQuickEdit();
+    if (state.selectedTaskId !== id) return;
+  }
+  if (quickDrafts.has(id)) {
+    showToast('タスク詳細で変更を保存してから依頼してください');
+    return;
   }
   const task = state.detail?.task.id === id ? state.detail.task : state.tasks.find(task => task.id === id);
   if (!task) return;
@@ -1279,13 +1316,12 @@ notionPanel.addEventListener('click', async event => {
   notionSaving = true; renderNotion(task);
   document.querySelector('#notion-status').textContent = 'Notionへ保存しています…';
   try {
-    if (quickDirty.size) await saveQuickEdit();
-    if (quickDirty.size || quickSaving) throw new Error('タスクの変更を保存してから再操作してください');
+    if (!quickDrafts.get(id)?.saving) await saveQuickEdit();
+    if (quickDrafts.has(id)) throw new Error('タスクの変更を保存してから再操作してください');
     await api(path, options);
     await loadTasks();
+    if (state.selectedTaskId === id) await loadTaskDetail();
     if (state.selectedTaskId === id) {
-      state.detail = await api(`/api/tasks/${encodeURIComponent(id)}?history=0`);
-      renderDetail();
       document.querySelector('#notion-status').textContent = 'Notionに保存しました';
       document.querySelector('#notion-file').value = '';
     }
@@ -1351,8 +1387,8 @@ async function transfer(action) {
 }
 document.querySelector('#export-all').addEventListener('click', () => transfer(async () => {
   transferStatus.textContent = 'Exportしています…';
-  if (quickDirty.size) await saveQuickEdit();
-  if (quickDirty.size || quickSaving) throw new Error('タスクの変更を保存してからExportしてください');
+  if (!quickDrafts.get(state.selectedTaskId)?.saving) await saveQuickEdit();
+  if (quickDrafts.size) throw new Error('タスクの変更を保存してからExportしてください');
   const backup = await api('/api/export');
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1365,7 +1401,7 @@ document.querySelector('#import-preview').addEventListener('click', () => transf
   clearImport();
   const file = document.querySelector('#import-file').files[0];
   if (!file || !file.size || file.size > 20 * 1024 * 1024) throw new Error('空でない20 MiB以下のJSONファイルを選んでください');
-  if (quickDirty.size || quickSaving) throw new Error('編集中のタスクを保存してからImportしてください');
+  if (quickDrafts.size) throw new Error('編集中のタスクを保存してからImportしてください');
   let backup;
   try { backup = JSON.parse(await file.text()); } catch { throw new Error('JSONファイルを読み込めません'); }
   const preview = await api('/api/import/preview', { method: 'POST', body: JSON.stringify({ backup }) });
@@ -1375,10 +1411,10 @@ document.querySelector('#import-preview').addEventListener('click', () => transf
 }));
 importConfirm.addEventListener('click', () => transfer(async () => {
   if (!pendingImport) return;
+  if (quickDrafts.size) throw new Error('編集中のタスクを保存してからImportしてください');
   const result = await api('/api/import', { method: 'POST', body: JSON.stringify(pendingImport) });
   clearImport();
   state.selectedTaskId = null; state.detail = null; state.category = ''; state.filter = 'all';
-  quickDirty.clear();
   writePreference('tasks-view', state.filter);
   writePreference('tasks-category', state.category);
   transferStatus.textContent = `${result.tasks}件のタスクをImportしました。画面を再読み込みします`;

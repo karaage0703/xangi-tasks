@@ -118,7 +118,7 @@ Content is stored as Markdown. Raw HTML and comments use a plain-source field. E
 
 Open “Verification and evidence” to edit deadline verification, evidence, conversation text, source URL and speaker. Source URLs must use http/https.
 
-Save status appears in the form. Failed drafts remain available through Retry save. Pending edits must save before closing details or switching tasks.
+You can keep editing, close the details, or open another task while a save is in progress. Failed edits stay with the original task while the page remains open. Reopen its details and select Retry save to try again.
 
 ## Personal notes
 
