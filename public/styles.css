@@ -9,13 +9,14 @@
   --xangi-font-reading: 16px;
   --xangi-font-code: 13px;
   --xangi-font-metric: 24px;
-  --xangi-font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+  --xangi-font-family: system-ui, sans-serif;
+  --xangi-font-reading-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
 
   --danger: #d44c47; --surface: #fff; --surface-muted: #f7f6f3; --surface-subtle: #f1f0ed;
   --ink: #37352f; --ink-secondary: #5e5c57; --ink-muted: #787774; --ink-subtle: #9b9995;
   --border: #d8d7d4; --hairline: #e3e2df; --accent: #2383e2; --accent-ink: #155f9f;
   --accent-tint: rgb(35 131 226 / 11%); --hover: rgb(55 53 47 / 8%); --active: rgb(55 53 47 / 12%);
-  color-scheme: light; color: var(--ink); background: var(--surface-muted); font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif; --task-editor-font-size: 14px;
+  color-scheme: light; color: var(--ink); background: var(--surface-muted); font-family: var(--xangi-font-family); --task-editor-font-size: 14px;
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -493,3 +494,5 @@ body { font-family: var(--xangi-font-family); font-size: var(--xangi-font-ui); }
   #task-dialog input[name="targetDate"],
   #task-dialog input[name="deadlineAt"] { font-size: var(--task-editor-font-size); }
 }
+
+.task-description, .source-snippet, .message-text, .task-markdown-editor, textarea { font-family: var(--xangi-font-reading-family); }
